@@ -21,7 +21,7 @@ Inaccessible IDs return 404. A linked player's session view contains only their 
 
 1. Create a separate **development** Supabase project. Use its project URL for `SUPABASE_URL`. Configure Supabase Auth to issue asymmetric access tokens; the JWKS endpoint must publish the signing key. The audience is normally `authenticated`.
 2. In Storage, create `playeriq-reports` as a **private** bucket. Set its file-size limit at or above the configured API limit and allow `application/pdf`. Do not add public `storage.objects` policies. The server-only secret key must be available only to API and worker processes.
-3. Apply Alembic migrations with a separate privileged migration connection. Migration `0003_phase2_access` creates NOLOGIN group roles, revokes browser grants on `playeriq`, grants only needed table operations, adds RLS policies, and forces RLS on domain tables. It does **not** create login credentials.
+3. Apply Alembic migrations with a separate privileged migration connection. Migration `0003_phase2_access` creates NOLOGIN group roles, revokes browser grants on `playeriq`, grants only needed table operations, adds RLS policies, and forces RLS on domain tables. Migration `0004_secure_alembic_version` revokes Data API grants on the public Alembic version table and enables RLS. Neither migration creates login credentials.
 4. In the SQL editor or with a privileged development connection, create distinct login roles and give them group-role membership. Replace both placeholder passwords with unique generated secrets locally; never commit or paste them into chat:
 
 ```sql
@@ -35,7 +35,7 @@ If the platform's role policy disallows role creation from your chosen migration
 
 5. In `.env`, set `DATABASE_URL`, `WORKER_DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_STORAGE_SECRET_KEY`, and optionally `SUPABASE_JWT_AUDIENCE`, `SUPABASE_STORAGE_BUCKET`, `JWKS_CACHE_SECONDS`, `MAX_UPLOAD_BYTES`, `CORS_ORIGINS`, and validation review thresholds. `.env.example` is placeholders only. The frontend may eventually use a Supabase publishable key, but this backend does not need it. Never expose either database password or the Storage secret to the frontend.
 
-For a fresh development database, run `python -m alembic upgrade head` with the privileged migration URL temporarily in `DATABASE_URL`, then restore the restricted API URL. `python -m alembic current` should show `0003_phase2_access`. Live migration was not run during implementation because no development Supabase credentials were configured locally. The migration was compiled offline; run the live command on your development project before deployment.
+For a fresh development database, run `python -m alembic upgrade head` with the privileged migration URL temporarily in `DATABASE_URL`, then restore the restricted API URL. `python -m alembic current` should show `0004_secure_alembic_version`. The schema and RLS policies were applied to a separate development Supabase project through its migration API. Both restricted runtime logins and the read-only live RLS test passed. A server-only Storage secret and a signed-in development user are still needed for authenticated HTTP verification.
 
 ## Verification
 
