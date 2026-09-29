@@ -1,0 +1,1 @@
+"""GPS extraction and validation."""

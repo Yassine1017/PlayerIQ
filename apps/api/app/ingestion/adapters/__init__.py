@@ -1,0 +1,1 @@
+"""Versioned source report adapters."""

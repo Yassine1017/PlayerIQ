@@ -1,0 +1,41 @@
+"""SQLAlchemy model registry."""
+
+from app.models.tables import (
+    ActivityReport,
+    AiRun,
+    AiToolCall,
+    ChatMessage,
+    ChatThread,
+    CoachInvitation,
+    IngestionFinding,
+    IngestionJob,
+    Player,
+    PlayerCoach,
+    PlayerSession,
+    Profile,
+    ReportPeriod,
+    ReportUpload,
+    SessionMetricValue,
+    SourceAthleteRow,
+    SourceMetricObservation,
+)
+
+__all__ = [
+    "ActivityReport",
+    "AiRun",
+    "AiToolCall",
+    "ChatMessage",
+    "ChatThread",
+    "CoachInvitation",
+    "IngestionFinding",
+    "IngestionJob",
+    "Player",
+    "PlayerCoach",
+    "PlayerSession",
+    "Profile",
+    "ReportPeriod",
+    "ReportUpload",
+    "SessionMetricValue",
+    "SourceAthleteRow",
+    "SourceMetricObservation",
+]
