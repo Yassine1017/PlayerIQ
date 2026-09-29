@@ -1,6 +1,6 @@
 # PlayerIQ — V1 Product and Technical Specification
 
-- **Status:** Design specification only. No application code is included.
+- **Status:** V1 target architecture; Phase 1 foundation and Phase 2 authenticated backend ingestion are implemented. Later phases remain planned.
 - **Date:** 2026-09-29
 - **Audience:** Product, frontend, backend, data, and AI developers.
 
@@ -9,6 +9,12 @@
 PlayerIQ turns GPS reports into a reliable personal history, deterministic performance summaries, and an AI explanation grounded in that history. A source report may list multiple athletes; each athlete row becomes a player's session only after an explicit authorized link. A player can upload a report and invite a coach; an invited coach can upload and manage that player's linked rows. V1 has no organization or team hierarchy. Every analytical claim is scoped to one player unless a later version introduces explicit team access.
 
 The core promise is **traceable numbers**. Extraction may fail visibly; an unsupported or ambiguous value must not become a metric. SQL/Python functions calculate all numerical results. The LLM selects read-only tools and explains their outputs. It cannot query arbitrary SQL, calculate statistics, write data, or make medical or injury diagnoses.
+
+### Implemented Phase 2 scope
+
+The current backend supports the reviewed Activity Report text-PDF layout only. It verifies Supabase asymmetric JWTs, stores uploads in a private bucket, processes durable ingestion jobs with a restricted worker role, presents uploader-only candidate rows, and links one `ready` row at a time to the uploader's **own** player profile. Accepted athlete metrics retain source-observation IDs. `zero_recorded` and `needs_review` rows remain unlinked. The current link route accepts one mapping per request and returns a single session; multiple authorized mappings require separate calls. An active coach grant may read a player, but coach invitations, coach writes, CSV support, delete/retention flows, the frontend, analytics, and AI are not implemented. The broader V1 acceptance criteria and route descriptions below are targets for later phases. See [AUTH.md](AUTH.md) and [INGESTION.md](INGESTION.md) for the implemented contract.
+
+The Phase 2 migration grants restricted API/worker roles, revokes browser grants on the private schema, adds RLS policies, and forces RLS on domain tables. Separate runtime login credentials and a private Supabase Storage bucket must be configured in a development project; live migration and policy verification were not possible without that project's credentials. `/readyz` now checks the database and restricted API-role membership.
 
 ### V1 acceptance criteria
 

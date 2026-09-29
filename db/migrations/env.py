@@ -4,6 +4,7 @@ import app.models  # noqa: F401 - register mapped tables
 from alembic import context
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db.session import normalize_database_url
 from sqlalchemy import create_engine, pool
 
 target_metadata = Base.metadata
@@ -17,7 +18,7 @@ def database_url() -> str:
     url = get_settings().database_url
     if not url:
         raise RuntimeError("Set DATABASE_URL before running Alembic")
-    return url
+    return normalize_database_url(url).render_as_string(hide_password=False)
 
 
 def run_migrations_offline() -> None:
@@ -33,7 +34,14 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    engine = create_engine(database_url(), poolclass=pool.NullPool)
+    parsed = normalize_database_url(database_url())
+    connect_args: dict[str, object] = {}
+    if parsed.drivername == "postgresql+psycopg":
+        if parsed.host and parsed.host.endswith("supabase.com") and "sslmode" not in parsed.query:
+            connect_args["sslmode"] = "require"
+        if parsed.port == 6543:
+            connect_args["prepare_threshold"] = None
+    engine = create_engine(parsed, poolclass=pool.NullPool, connect_args=connect_args)
     with engine.connect() as connection:
         context.configure(
             connection=connection,

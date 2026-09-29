@@ -1,7 +1,9 @@
-"""Unauthenticated process health and Phase 1 readiness routes."""
+"""Unauthenticated process health and database readiness routes."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
+
+from app.db.session import Database
 
 router = APIRouter()
 
@@ -21,6 +23,14 @@ def healthz() -> HealthResponse:
 
 
 @router.get("/readyz", response_model=ReadinessResponse)
-def readyz() -> ReadinessResponse:
-    # A database probe belongs here after Phase 1 configures a database connection.
-    return ReadinessResponse(status="ready", checks={"application": "ok", "database": "not_checked"})
+def readyz(request: Request, response: Response) -> ReadinessResponse:
+    database: Database | None = getattr(request.app.state, "database", None)
+    if database is None:
+        response.status_code = 503
+        return ReadinessResponse(status="not_ready", checks={"application": "ok", "database": "not_configured"})
+    try:
+        database.check_connection()
+    except Exception:
+        response.status_code = 503
+        return ReadinessResponse(status="not_ready", checks={"application": "ok", "database": "unavailable"})
+    return ReadinessResponse(status="ready", checks={"application": "ok", "database": "ok"})

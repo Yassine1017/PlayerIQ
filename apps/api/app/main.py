@@ -1,6 +1,7 @@
-"""FastAPI application factory. Ingestion is not exposed without authentication."""
+"""FastAPI application factory for authenticated Phase 2 ingestion."""
 
 import logging
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -8,8 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_exception_handlers
 from app.api.health import router as health_router
+from app.api.v1 import router as v1_router
+from app.core.auth import SupabaseJWTVerifier
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, request_id_context
+from app.db.session import Database, make_engine
+from app.services.storage import SupabaseReportStorage
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +22,26 @@ logger = logging.getLogger(__name__)
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
-    app = FastAPI(title="PlayerIQ API", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
+        yield
+        database: Database | None = getattr(app.state, "database", None)
+        if database is not None:
+            database.engine.dispose()
+
+    app = FastAPI(title="PlayerIQ API", version="0.2.0", lifespan=lifespan)
+    app.dependency_overrides[get_settings] = lambda: settings
+    app.state.database = Database(make_engine(settings.database_url)) if settings.database_url else None
+    app.state.jwt_verifier = SupabaseJWTVerifier(settings) if settings.supabase_url else None
+    app.state.storage = (
+        SupabaseReportStorage(settings) if settings.supabase_url and settings.supabase_storage_secret_key else None
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=False,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST", "PATCH"],
         allow_headers=["Authorization", "Content-Type"],
     )
 
@@ -34,10 +53,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             response = await call_next(request)
             response.headers["X-Request-ID"] = request_id
+            route = request.scope.get("route")
             logger.info(
                 "request_complete method=%s path=%s status=%s",
                 request.method,
-                request.url.path,
+                getattr(route, "path", "unmatched"),
                 response.status_code,
             )
             return response
@@ -46,6 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(health_router)
+    app.include_router(v1_router)
     return app
 
 

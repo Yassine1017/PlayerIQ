@@ -1,37 +1,63 @@
 # PlayerIQ
 
-PlayerIQ is a football GPS performance platform. This repository currently contains **Phase 1 only**: a Python backend foundation, a versioned registry for the reviewed Activity Report PDF, deterministic extraction and validation, private-schema database models/migrations, and tests. There is no frontend, upload endpoint, authentication, player linking, analytics API, or AI integration yet.
+PlayerIQ is a football GPS performance platform. Phase 2 implements a backend-only, authenticated path from a supported text PDF to reviewed athlete rows and an explicitly linked player session. Committed tests generate a synthetic report in memory. The frontend, historical analytics, and AI Analyst are later phases.
 
-The architecture and source metric decisions are in [SPEC.md](docs/SPEC.md) and [GPS_DATA_MODEL.md](docs/GPS_DATA_MODEL.md). The ingestion boundary is explained in [INGESTION.md](docs/INGESTION.md).
+Architecture and source data decisions: [SPEC.md](docs/SPEC.md), [GPS_DATA_MODEL.md](docs/GPS_DATA_MODEL.md), [INGESTION.md](docs/INGESTION.md), and [AUTH.md](docs/AUTH.md).
 
-## Backend setup (Python 3.12)
+## Development setup
 
-Run in PowerShell from the repository root:
+Use Python 3.12 and a **development** Supabase project. Keep the project URL, database passwords, and server-only Storage key in an ignored `.env`; `.env.example` contains placeholders. Use separate restricted PostgreSQL login roles for the API and worker as described in [AUTH.md](docs/AUTH.md). Do not use `postgres`, `service_role`, a superuser, or a role with `BYPASSRLS` as a runtime login. Apply migrations with a separate privileged migration connection. Configure a private Storage bucket named `playeriq-reports` (or set `SUPABASE_STORAGE_BUCKET`), with public access disabled. Never expose the Storage secret key to a browser.
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -r requirements-lock.txt
+python -m pip install -e . --no-deps
 Copy-Item .env.example .env
-python -m uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8000
-```
-
-Then visit `http://127.0.0.1:8000/healthz` and `/readyz`. Readiness currently reports `database: not_checked`; it does not claim that PostgreSQL is connected.
-
-## Environment and database
-
-Set `DATABASE_URL` in `.env` to a PostgreSQL connection string. The migrations expect a Supabase-compatible `auth.users` table to exist and create a private `playeriq` schema. They enable row level security with no access policies yet. Use a privileged migration role to apply them; the eventual application and worker roles must be separately restricted and granted policies before authenticated features are added. The other values in `.env.example` are placeholders or review thresholds. Keep `.env` and credentials out of Git.
-
-```powershell
+# Set DATABASE_URL in .env to the privileged development migration connection.
 $env:PYTHONPATH = "apps/api"
 python -m alembic upgrade head
 python -m alembic current
+# Create the restricted login roles as described in docs/AUTH.md.
+# Replace DATABASE_URL with the restricted API connection; set the worker and Storage values.
+python -m uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8000
 ```
 
-There is no PostgreSQL service bundled with this repository. Offline migration SQL can be checked with `python -m alembic upgrade head --sql`, but a successful live migration requires a real database with `auth.users`.
+`DATABASE_URL` must use a login with membership in `playeriq_api`; `WORKER_DATABASE_URL` must use a different login with membership in `playeriq_worker`. PostgreSQL URLs beginning `postgres://` or `postgresql://` are normalized to psycopg. Supabase transaction-pooler connections on port 6543 disable psycopg prepared statements. TLS is required for `*.supabase.com` hosts. `SUPABASE_URL` and `SUPABASE_JWT_AUDIENCE` configure access-token verification through the project's asymmetric JWKS. `SUPABASE_STORAGE_SECRET_KEY` stays server-side. `MAX_UPLOAD_BYTES` defaults to 10 MiB; `JWKS_CACHE_SECONDS`, validation thresholds, CORS origins, and log level have safe defaults in `.env.example`.
 
-## Tests and local GPS report
+The command above uses `DATABASE_URL` for the privileged **migration** connection first. Migration `0003` creates the NOLOGIN group roles; create distinct restricted login roles and grant membership afterward, then restore `DATABASE_URL` to the API login before starting FastAPI. Migrations refer to the Supabase-owned `auth.users` table; they do not create or alter it. No reset command is required. When using a Supabase pooler, use the supplied connection string and correct pooler mode. See [AUTH.md](docs/AUTH.md) for exact SQL and security checks.
+
+`GET /healthz` reports process health. `GET /readyz` probes the database and verifies that the login is a restricted API-role member; it returns 503 when the database is unconfigured or unavailable.
+
+## Ingestion worker
+
+The API queues a durable job after a private upload. Run the deterministic worker command from another terminal or schedule it on the backend host:
+
+```powershell
+$env:PYTHONPATH = "apps/api"
+python -m app.cli.process_ingestion --limit 20
+```
+
+Run it repeatedly to process subsequent jobs. It claims due jobs with `FOR UPDATE SKIP LOCKED`, retries transient storage/processing failures, and leaves the report in `awaiting_link` for explicit review. The worker uses `WORKER_DATABASE_URL` and the same private Storage configuration as the API. It has no public trigger endpoint.
+
+## Phase 2 API
+
+All `/v1` routes require `Authorization: Bearer <Supabase access token>`:
+
+| Route | Purpose |
+| --- | --- |
+| `GET /v1/me`, `PATCH /v1/me` | Read or create/update the user's profile. |
+| `POST /v1/players`, `GET /v1/players`, `GET /v1/players/{player_id}` | Create and read authorized player profiles. |
+| `POST /v1/report-uploads` | Upload a supported multipart PDF and queue ingestion. |
+| `GET /v1/report-uploads/{upload_id}` | Uploader-only status, findings, and candidate athlete rows. |
+| `POST /v1/report-uploads/{upload_id}/links` | Explicitly link one eligible row to the uploader's own player profile. |
+| `GET /v1/report-uploads/{upload_id}/file` | Uploader-only private report download. |
+| `GET /v1/players/{player_id}/sessions` | Authorized, paginated accepted sessions. |
+| `GET /v1/players/{player_id}/sessions/{session_id}` | Authorized session metrics and source provenance. |
+
+Only the reviewed Activity Report text-PDF layout is supported in Phase 2. Candidate rows do not become sessions by name matching. Zero-recorded and review-needed rows are held. Coach invitations and coach writes are deferred; coach read grants already have a structural authorization path, but no invitation endpoint is present.
+
+## Tests and privacy
 
 ```powershell
 python -m pytest -q
@@ -40,15 +66,4 @@ python -m ruff format --check apps/api db/migrations
 python -m mypy apps/api/app
 ```
 
-Tests generate an anonymized PDF in memory. To additionally run the optional real-report test without committing the PDF:
-
-```powershell
-$env:PLAYERIQ_LOCAL_REPORT = "C:\path\to\private-report.pdf"
-python -m pytest -q
-```
-
-You may place the private PDF in `sample-data/`; that folder ignores everything except its README. The supplied original remains outside the repository. Do not commit athlete names, report pages, or raw report bytes.
-
-## Current API
-
-`GET /healthz` checks that the process responds. `GET /readyz` states that database readiness has not been checked. Ingestion is a Python service/repository boundary for now; it is intentionally not exposed over HTTP before authentication and ownership checks exist.
+Unit/API tests use generated keys, fabricated users, an in-memory fake Storage service, SQLite integration, and a synthetic PDF. Optional read-only development Supabase checks are described in [AUTH.md](docs/AUTH.md) and are disabled by default. The optional private-report test uses `PLAYERIQ_LOCAL_REPORT` only when explicitly set and never commits report data. `sample-data/` remains ignored except for its README.
