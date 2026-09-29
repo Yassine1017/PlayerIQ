@@ -148,6 +148,40 @@ class LinkOut(StrictModel):
     quality_state: str
 
 
+class ChartReviewProposal(StrictModel):
+    source_athlete_row_id: UUID
+    metric_key: Literal["maximum_velocity_kmh", "player_load_reported"]
+    raw_label: str = Field(min_length=1, max_length=120)
+
+
+class ChartReviewConfirmation(StrictModel):
+    source_athlete_row_id: UUID
+    raw_label: str = Field(min_length=1, max_length=120)
+    review_reason: str | None = Field(default=None, max_length=500)
+
+
+class ChartReviewOut(StrictModel):
+    id: UUID
+    source_athlete_row_id: UUID
+    metric_key: str
+    raw_label: str
+    parsed_value: str
+    unit: str
+    source_locator: str
+    capture_method: str
+    status: str
+    proposed_by_user_id: UUID
+    reviewed_by_user_id: UUID | None
+    reviewed_at: datetime | None
+    review_reason: str | None
+    source_observation_id: UUID | None
+    created_at: datetime
+
+
+class ChartReviewsOut(StrictModel):
+    items: list[ChartReviewOut]
+
+
 class SessionMetricOut(StrictModel):
     metric_key: str
     value: str

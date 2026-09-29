@@ -246,6 +246,41 @@ class SourceMetricObservation(Base, UuidId):
     quality_state: Mapped[str] = mapped_column(String(24), nullable=False)
 
 
+class ChartMetricReview(Base, UuidId, CreatedAt):
+    """Uploader-confirmed transcription of a printed page-two chart label."""
+
+    __tablename__ = "chart_metric_reviews"
+    __table_args__ = (
+        CheckConstraint(
+            "metric_key IN ('maximum_velocity_kmh','player_load_reported')",
+            name="chart_metric_key",
+        ),
+        CheckConstraint(
+            "status IN ('proposed','confirmed','held','superseded')",
+            name="chart_review_status",
+        ),
+        CheckConstraint("parsed_value >= 0", name="chart_review_nonnegative"),
+        Index("ix_chart_review_row_metric", "athlete_row_id", "metric_key", "created_at"),
+    )
+
+    athlete_row_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.source_athlete_rows.id"), nullable=False
+    )
+    metric_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    raw_label: Mapped[str] = mapped_column(String(120), nullable=False)
+    parsed_value: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
+    source_locator: Mapped[str] = mapped_column(String(255), nullable=False)
+    capture_method: Mapped[str] = mapped_column(String(24), nullable=False, default="manual")
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="proposed")
+    proposed_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+    reviewed_by_user_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_reason: Mapped[str | None] = mapped_column(String(500))
+    source_observation_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.source_metric_observations.id")
+    )
+
+
 class IngestionFinding(Base, UuidId, CreatedAt):
     """Structured extraction/validation evidence retained for manual review."""
 

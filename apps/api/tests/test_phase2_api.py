@@ -271,3 +271,139 @@ def test_link_authorization_upload_membership_and_conflicts(
     assert link(second, second_rows[0]["id"], owner_player).status_code == 409
     assert client.get(f"/v1/players/{owner_player}/sessions", headers=_auth()).json()["items"][0]["id"]
     assert client.get(f"/v1/players/{other_player}/sessions", headers=_auth("other")).json()["items"] == []
+
+
+def test_chart_review_is_uploader_only_and_updates_linked_history(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings], synthetic_pdf: bytes
+) -> None:
+    client, database, storage, settings = phase2
+    player_id = client.post("/v1/players", headers=_auth(), json={"display_name": "Athlete"}).json()["id"]
+    upload_id = _upload(client, synthetic_pdf)["upload_id"]
+    assert process_next_job(database, storage, settings)
+    rows = client.get(f"/v1/report-uploads/{upload_id}", headers=_auth()).json()["candidate_rows"]
+    row_id = rows[0]["id"]
+    chart_url = f"/v1/report-uploads/{upload_id}/chart-reviews"
+    assert client.get(chart_url, headers=_auth("other")).status_code == 404
+    assert (
+        client.post(
+            chart_url,
+            headers=_auth("other"),
+            json={"source_athlete_row_id": row_id, "metric_key": "player_load_reported", "raw_label": "420"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            chart_url,
+            headers=_auth(),
+            json={"source_athlete_row_id": rows[1]["id"], "metric_key": "player_load_reported", "raw_label": "0"},
+        ).status_code
+        == 422
+    )
+
+    load_body = {"source_athlete_row_id": row_id, "metric_key": "player_load_reported", "raw_label": "420"}
+    load_proposal = client.post(chart_url, headers=_auth(), json=load_body)
+    assert load_proposal.status_code == 201, load_proposal.text
+    assert load_proposal.json()["status"] == "proposed"
+    assert client.post(chart_url, headers=_auth(), json=load_body).json()["id"] == load_proposal.json()["id"]
+    confirm_url = f"{chart_url}/{load_proposal.json()['id']}/confirm"
+    assert (
+        client.post(
+            confirm_url, headers=_auth("other"), json={"source_athlete_row_id": row_id, "raw_label": "420"}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            confirm_url, headers=_auth(), json={"source_athlete_row_id": row_id, "raw_label": "421"}
+        ).status_code
+        == 409
+    )
+    assert (
+        client.post(
+            confirm_url, headers=_auth(), json={"source_athlete_row_id": rows[2]["id"], "raw_label": "420"}
+        ).status_code
+        == 409
+    )
+    confirmed = client.post(confirm_url, headers=_auth(), json={"source_athlete_row_id": row_id, "raw_label": "420"})
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["status"] == "confirmed"
+    assert confirmed.json()["source_observation_id"]
+
+    linked = client.post(
+        f"/v1/report-uploads/{upload_id}/links",
+        headers=_auth(),
+        json={"player_id": player_id, "source_athlete_row_id": row_id, "session_type": "training"},
+    )
+    assert linked.status_code == 200, linked.text
+    session_id = linked.json()["session_id"]
+    detail_url = f"/v1/players/{player_id}/sessions/{session_id}"
+    detail = client.get(detail_url, headers=_auth()).json()
+    assert (
+        next(metric for metric in detail["metrics"] if metric["metric_key"] == "player_load_reported")["value"]
+        == "420.000"
+    )
+    overview_url = f"/v1/players/{player_id}/analytics/overview"
+    first = client.get(overview_url, headers=_auth())
+    assert first.status_code == 200, first.text
+    initial_fingerprint = first.json()["history_fingerprint"]
+    assert client.get(overview_url, headers=_auth("other")).status_code == 404
+
+    speed_body = {"source_athlete_row_id": row_id, "metric_key": "maximum_velocity_kmh", "raw_label": "29.75"}
+    speed = client.post(chart_url, headers=_auth(), json=speed_body).json()
+    accepted = client.post(
+        f"{chart_url}/{speed['id']}/confirm",
+        headers=_auth(),
+        json={"source_athlete_row_id": row_id, "raw_label": "29.75"},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["status"] == "confirmed"
+    assert (
+        client.post(
+            f"{chart_url}/{speed['id']}/confirm",
+            headers=_auth(),
+            json={"source_athlete_row_id": row_id, "raw_label": "29.75"},
+        ).json()["id"]
+        == speed["id"]
+    )
+    updated = client.get(overview_url, headers=_auth()).json()
+    assert updated["history_fingerprint"] != initial_fingerprint
+    speed_record = next(fact for fact in updated["facts"] if fact["kind"] == "personal_record")
+    assert speed_record["value"] == "29.750"
+    assert speed_record["rule_version"] == "analytics_v1"
+
+    suspect = client.post(
+        chart_url,
+        headers=_auth(),
+        json={**speed_body, "raw_label": "95.80"},
+    ).json()
+    held = client.post(
+        f"{chart_url}/{suspect['id']}/confirm",
+        headers=_auth(),
+        json={"source_athlete_row_id": row_id, "raw_label": "95.80"},
+    )
+    assert held.status_code == 200, held.text
+    assert held.json()["status"] == "held"
+    assert all(
+        metric["metric_key"] != "maximum_velocity_kmh"
+        for metric in client.get(detail_url, headers=_auth()).json()["metrics"]
+    )
+    assert client.get(overview_url, headers=_auth()).json()["history_fingerprint"] != updated["history_fingerprint"]
+
+    corrected = client.post(chart_url, headers=_auth(), json={**speed_body, "raw_label": "30.25"}).json()
+    corrected_result = client.post(
+        f"{chart_url}/{corrected['id']}/confirm",
+        headers=_auth(),
+        json={"source_athlete_row_id": row_id, "raw_label": "30.25"},
+    )
+    assert corrected_result.status_code == 200, corrected_result.text
+    assert corrected_result.json()["status"] == "confirmed"
+    assert corrected_result.json()["source_observation_id"] != accepted.json()["source_observation_id"]
+    assert client.get(overview_url, headers=_auth()).json()["history_fingerprint"] != updated["history_fingerprint"]
+    trend_url = f"/v1/players/{player_id}/analytics/trend?metric=maximum_velocity_kmh&from=2025-03-01&to=2025-03-31"
+    trend = client.get(trend_url, headers=_auth())
+    assert trend.status_code == 200, trend.text
+    assert trend.json()["value"] == "30.250"
+    assert trend.json()["rule_version"] == "analytics_v1"
+    assert client.get(trend_url, headers=_auth("other")).status_code == 404
+    assert client.get(f"/v1/players/{player_id}/analytics/outliers", headers=_auth("other")).status_code == 404

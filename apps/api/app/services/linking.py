@@ -20,6 +20,7 @@ from app.models.tables import (
 )
 from app.schemas.v1 import LinkOut, LinkRequest
 from app.services.authorization import require_player, require_upload
+from app.services.chart_reviews import sync_confirmed_chart_metrics
 
 
 def link_athlete_row(
@@ -146,6 +147,7 @@ def link_athlete_row(
                 quality_state=metric.quality_state.value,
             )
         )
+    sync_confirmed_chart_metrics(session, player_session, upload.parser_key)
     return LinkOut(
         session_id=player_session.id,
         player_id=request.player_id,
@@ -159,7 +161,10 @@ def _athlete_observations(session: Session, upload_id: UUID) -> dict[UUID, list[
     grouped: dict[UUID, list[SourceMetricObservation]] = defaultdict(list)
     if rows:
         for observation in session.scalars(
-            select(SourceMetricObservation).where(SourceMetricObservation.athlete_row_id.in_(rows))
+            select(SourceMetricObservation).where(
+                SourceMetricObservation.athlete_row_id.in_(rows),
+                SourceMetricObservation.parser_version != "chart_review_v1",
+            )
         ):
             if observation.athlete_row_id is not None:
                 grouped[observation.athlete_row_id].append(observation)

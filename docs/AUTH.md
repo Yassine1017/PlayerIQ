@@ -8,12 +8,14 @@ For each request, the API opens a transaction using a restricted PostgreSQL logi
 
 ## Resource access
 
-| Resource | Phase 2 rule |
+| Resource | Current rule |
 | --- | --- |
 | Player profile and sessions | Owner read. An active pre-existing coach grant can read a player, but coach invitations and writes are deferred. |
 | Upload, candidate athlete rows, raw PDF | Uploader only, even after an athlete row is linked. |
 | Row linking | Uploader must also own the target player. A row must belong to that upload and have `ready` quality. |
 | Session metrics | Only accepted, validated athlete observations are copied, retaining source observation IDs. Report/team aggregates are excluded. |
+| Chart reviews | Uploader alone may list, propose, and confirm values for ready rows in their report. The selected row UUID, not display name, controls the athlete match. Linked players see only their own confirmed metric and provenance summary through the session route. |
+| Analytics | Owner or active read-granted coach may query the selected player's accepted sessions. A player ID alone conveys no access. |
 
 Inaccessible IDs return 404. A linked player's session view contains only their linked row's metrics and row-specific warnings; it does not include teammate rows or the full report. The private `playeriq` schema must **not** be added to Supabase's exposed API schemas. The report Storage bucket must be private; the API uses a server-only Storage secret and checks upload ownership before streaming a raw PDF. No permanent public URL is created.
 
@@ -35,7 +37,7 @@ If the platform's role policy disallows role creation from your chosen migration
 
 5. In `.env`, set `DATABASE_URL`, `WORKER_DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_STORAGE_SECRET_KEY`, and optionally `SUPABASE_JWT_AUDIENCE`, `SUPABASE_STORAGE_BUCKET`, `JWKS_CACHE_SECONDS`, `MAX_UPLOAD_BYTES`, `CORS_ORIGINS`, and validation review thresholds. `.env.example` is placeholders only. The frontend may eventually use a Supabase publishable key, but this backend does not need it. Never expose either database password or the Storage secret to the frontend.
 
-For a fresh development database, run `python -m alembic upgrade head` with the privileged migration URL temporarily in `DATABASE_URL`, then restore the restricted API URL. `python -m alembic current` should show `0004_secure_alembic_version`. The schema and RLS policies were applied to a separate development Supabase project through its migration API. Both restricted runtime logins and the read-only live RLS test passed. A server-only Storage secret and a signed-in development user are still needed for authenticated HTTP verification.
+For a fresh development database, run `python -m alembic upgrade head` with the privileged migration URL temporarily in `DATABASE_URL`, then restore the restricted API URL. `python -m alembic current` should show `0005_chart_metric_reviews`. Migration `0005` adds the uploader-only review table and policies; API updates/deletes of session metric values are restricted to the uploader's linked session and the two chart metric keys. The schema and RLS policies were applied to a separate development Supabase project through its migration API. Restricted runtime logins were verified previously; an authenticated development user is still needed for live HTTP verification.
 
 ## Verification
 

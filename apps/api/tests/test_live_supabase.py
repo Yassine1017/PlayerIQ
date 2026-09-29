@@ -24,10 +24,11 @@ def test_development_supabase_role_migration_and_rls() -> None:
                     "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity "
                     "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
                     "WHERE n.nspname = 'playeriq' AND c.relname IN "
-                    "('report_uploads', 'source_athlete_rows', 'player_sessions', 'session_metric_values')"
+                    "('report_uploads', 'source_athlete_rows', 'player_sessions', "
+                    "'session_metric_values', 'chart_metric_reviews')"
                 )
             ).all()
-            assert len(tables) == 4
+            assert len(tables) == 5
             assert all(row[1] and row[2] for row in tables)
             policy_count = connection.scalar(
                 text(
@@ -36,5 +37,12 @@ def test_development_supabase_role_migration_and_rls() -> None:
                 )
             )
             assert policy_count == 1
+            review_policies = connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_policies WHERE schemaname = 'playeriq' "
+                    "AND tablename = 'chart_metric_reviews'"
+                )
+            )
+            assert review_policies == 3
     finally:
         engine.dispose()

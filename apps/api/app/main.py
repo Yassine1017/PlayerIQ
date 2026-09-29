@@ -1,4 +1,4 @@
-"""FastAPI application factory for authenticated Phase 2 ingestion."""
+"""FastAPI application factory for authenticated ingestion and analytics."""
 
 import logging
 from contextlib import asynccontextmanager
@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.analytics import router as analytics_router
 from app.api.errors import register_exception_handlers
 from app.api.health import router as health_router
 from app.api.v1 import router as v1_router
@@ -30,7 +31,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if database is not None:
             database.engine.dispose()
 
-    app = FastAPI(title="PlayerIQ API", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="PlayerIQ API", version="0.3.0", lifespan=lifespan)
     app.dependency_overrides[get_settings] = lambda: settings
     app.state.database = Database(make_engine(settings.database_url)) if settings.database_url else None
     app.state.jwt_verifier = SupabaseJWTVerifier(settings) if settings.supabase_url else None
@@ -67,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_exception_handlers(app)
     app.include_router(health_router)
     app.include_router(v1_router)
+    app.include_router(analytics_router)
     return app
 
 

@@ -89,7 +89,13 @@ def upload_status(session: Session, upload: ReportUpload) -> UploadStatusOut:
                 if observation.raw_value is not None
             ],
             missing_metrics=[
-                observation.source_label for observation in observations[row.id] if observation.raw_value is None
+                observation.source_label
+                for observation in observations[row.id]
+                if observation.raw_value is None
+                and not any(
+                    candidate.source_label == observation.source_label and candidate.quality_state == "accepted"
+                    for candidate in observations[row.id]
+                )
             ],
             findings=[_finding_out(value) for value in findings if value.row_ordinal == row.row_ordinal],
             links=[

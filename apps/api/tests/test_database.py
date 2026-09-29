@@ -44,7 +44,7 @@ def _upload(user_id, digest: str, status: str = "received") -> ReportUpload:
 
 
 def test_models_have_private_schema_and_expected_constraints() -> None:
-    assert len([table for table in Base.metadata.tables.values() if table.schema == "playeriq"]) == 17
+    assert len([table for table in Base.metadata.tables.values() if table.schema == "playeriq"]) == 18
     assert Base.metadata.tables["auth.users"].info["external"] is True
     assert SourceAthleteRow.__table__.schema == "playeriq"
     assert PlayerSession.__table__.columns["source_athlete_row_id"].unique

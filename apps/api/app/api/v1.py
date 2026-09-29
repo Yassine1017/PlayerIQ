@@ -15,6 +15,10 @@ from app.core.config import Settings, get_settings
 from app.db.session import Database, get_database
 from app.models.tables import Player, PlayerCoach, Profile
 from app.schemas.v1 import (
+    ChartReviewConfirmation,
+    ChartReviewOut,
+    ChartReviewProposal,
+    ChartReviewsOut,
     LinkOut,
     LinkRequest,
     MeOut,
@@ -29,6 +33,7 @@ from app.schemas.v1 import (
     UploadStatusOut,
 )
 from app.services.authorization import require_player, require_upload
+from app.services.chart_reviews import confirm_chart_value, list_chart_reviews, propose_chart_value
 from app.services.linking import link_athlete_row
 from app.services.reading import get_session, list_sessions, upload_status
 from app.services.storage import ReportStorage, get_storage
@@ -164,6 +169,31 @@ def link_report_row(
             return link_athlete_row(session, user.id, upload_id, body, settings)
     except IntegrityError as exc:
         raise AppError("link_conflict", "Athlete row link conflicts with existing data", 409) from exc
+
+
+@router.get("/report-uploads/{upload_id}/chart-reviews", response_model=ChartReviewsOut)
+def chart_reviews(upload_id: UUID, user: User, database: DB) -> ChartReviewsOut:
+    with database.user_transaction(user.id) as session:
+        return list_chart_reviews(session, user.id, upload_id)
+
+
+@router.post("/report-uploads/{upload_id}/chart-reviews", response_model=ChartReviewOut, status_code=201)
+def propose_chart_review(upload_id: UUID, body: ChartReviewProposal, user: User, database: DB) -> ChartReviewOut:
+    with database.user_transaction(user.id) as session:
+        return propose_chart_value(session, user.id, upload_id, body)
+
+
+@router.post("/report-uploads/{upload_id}/chart-reviews/{review_id}/confirm", response_model=ChartReviewOut)
+def confirm_chart_review(
+    upload_id: UUID,
+    review_id: UUID,
+    body: ChartReviewConfirmation,
+    user: User,
+    database: DB,
+    settings: ConfiguredSettings,
+) -> ChartReviewOut:
+    with database.user_transaction(user.id) as session:
+        return confirm_chart_value(session, user.id, upload_id, review_id, body, settings)
 
 
 @router.get("/report-uploads/{upload_id}/file")

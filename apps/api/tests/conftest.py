@@ -3,6 +3,8 @@
 from io import BytesIO
 
 import pytest
+from PIL import Image, ImageDraw
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 
@@ -17,6 +19,13 @@ def synthetic_pdf() -> bytes:
         if page_number == 1:
             pdf.drawString(40, 740, "Activity 20250313120000")
             pdf.drawString(40, 720, "TOTAL TIME 1:30:00 TEAM DEMO CLUB VENUE DEFAULT")
+        if page_number == 2:
+            chart = Image.new("RGB", (700, 180), "white")
+            draw = ImageDraw.Draw(chart)
+            draw.text((20, 15), "Player Load & Maximum Velocity", fill="black")
+            draw.text((20, 60), "ATHLETE1  Player Load 420  Maximum Velocity 29.75", fill="black")
+            draw.text((20, 100), "ATHLETE2  Player Load 0  Maximum Velocity 0.00", fill="black")
+            pdf.drawImage(ImageReader(chart), 40, 470, width=530, height=140)
         if page_number == 4:
             pdf.drawString(40, 740, "Athlete Breakdown")
             pdf.drawString(40, 720, "Distance (m) Overall (%)")

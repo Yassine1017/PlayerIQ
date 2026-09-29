@@ -1,6 +1,6 @@
 # PlayerIQ
 
-PlayerIQ is a football GPS performance platform. Phase 2 implements a backend-only, authenticated path from a supported text PDF to reviewed athlete rows and an explicitly linked player session. Committed tests generate a synthetic report in memory. The frontend, historical analytics, and AI Analyst are later phases.
+PlayerIQ is a football GPS performance platform. Phases 1–3 provide an authenticated backend path from a supported text PDF to explicitly linked player sessions, uploader-confirmed chart labels, and deterministic historical analytics. Committed tests generate a synthetic report in memory. The frontend and AI Analyst are later phases.
 
 Architecture and source data decisions: [SPEC.md](docs/SPEC.md), [GPS_DATA_MODEL.md](docs/GPS_DATA_MODEL.md), [INGESTION.md](docs/INGESTION.md), and [AUTH.md](docs/AUTH.md).
 
@@ -40,7 +40,7 @@ python -m app.cli.process_ingestion --limit 20
 
 Run it repeatedly to process subsequent jobs. It claims due jobs with `FOR UPDATE SKIP LOCKED`, retries transient storage/processing failures, and leaves the report in `awaiting_link` for explicit review. The worker uses `WORKER_DATABASE_URL` and the same private Storage configuration as the API. It has no public trigger endpoint.
 
-## Phase 2 API
+## Current API
 
 All `/v1` routes require `Authorization: Bearer <Supabase access token>`:
 
@@ -50,12 +50,18 @@ All `/v1` routes require `Authorization: Bearer <Supabase access token>`:
 | `POST /v1/players`, `GET /v1/players`, `GET /v1/players/{player_id}` | Create and read authorized player profiles. |
 | `POST /v1/report-uploads` | Upload a supported multipart PDF and queue ingestion. |
 | `GET /v1/report-uploads/{upload_id}` | Uploader-only status, findings, and candidate athlete rows. |
+| `GET /v1/report-uploads/{upload_id}/chart-reviews` | Uploader-only chart proposal/review history. |
+| `POST /v1/report-uploads/{upload_id}/chart-reviews` | Propose an exact printed page-2 `Player Load` or `Maximum Velocity` label for a selected source row UUID. |
+| `POST /v1/report-uploads/{upload_id}/chart-reviews/{review_id}/confirm` | Confirm the proposed label and athlete match; keep anomalous speed held. |
 | `POST /v1/report-uploads/{upload_id}/links` | Explicitly link one eligible row to the uploader's own player profile. |
 | `GET /v1/report-uploads/{upload_id}/file` | Uploader-only private report download. |
 | `GET /v1/players/{player_id}/sessions` | Authorized, paginated accepted sessions. |
 | `GET /v1/players/{player_id}/sessions/{session_id}` | Authorized session metrics and source provenance. |
+| `GET /v1/players/{player_id}/analytics/overview` | Versioned latest comparisons, top-speed record, highest-distance training session, and changes. |
+| `GET /v1/players/{player_id}/analytics/trend?metric=&from=&to=&type=` | Accepted-value points, change, and eligible weekly slope. |
+| `GET /v1/players/{player_id}/analytics/outliers?type=&limit=` | Median/MAD workload results with source session IDs. |
 
-Only the reviewed Activity Report text-PDF layout is supported in Phase 2. Candidate rows do not become sessions by name matching. Zero-recorded and review-needed rows are held. Coach invitations and coach writes are deferred; coach read grants already have a structural authorization path, but no invitation endpoint is present.
+Only the reviewed Activity Report text-PDF layout is supported. Candidate rows do not become sessions by name matching. Chart labels require manual transcription and uploader confirmation against the page-2 PDF chart; no OCR or bar-height estimation runs. The exact human-confirmed label becomes authoritative. A confirmed post-link correction updates the accepted metric and changes the player-history fingerprint. Speed readings above the configured review value stay held. `Player Load` is a source index of unknown definition, so its history is stored but cross-session comparisons are `not_comparable` until a verified definition/configuration is available. Zero-recorded and review-needed rows are held. The analytics domain is pure and shared by HTTP and future AI tools; every result carries `analytics_v1`. Coach invitations and coach writes are deferred; coach read grants already have a structural authorization path, but no invitation endpoint is present.
 
 ## Tests and privacy
 
