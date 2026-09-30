@@ -10,6 +10,7 @@ import {
   X,
   CalendarDays,
   ChevronDown,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -44,6 +45,7 @@ const nav = [
   { href: "/app/sessions", label: "My Sessions", icon: CalendarDays },
   { href: "/app/upload", label: "Upload Report", icon: UploadCloud },
   { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/app/analyst", label: "AI Analyst", icon: Sparkles },
 ];
 
 export function AppFrame({ children }: { children: React.ReactNode }) {

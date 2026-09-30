@@ -1,9 +1,17 @@
 "use client";
 
-import { ArrowLeft, CheckCircle2, FileClock, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  FileClock,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { AnswerCard } from "@/components/analyst/answer-card";
+import type { AnalystResponse } from "@/lib/api/types";
 import { useApp } from "@/components/layout/app-frame";
 import { ErrorState, Loading, EmptyState } from "@/components/ui/states";
 import { Status } from "@/components/ui/status";
@@ -179,9 +187,91 @@ export default function SessionDetail() {
                 </section>
               </div>
             </div>
+            <SessionAnalysis
+              key={`${player.id}:${sessionId}`}
+              playerId={player.id}
+              sessionId={sessionId}
+            />
           </>
         )
       )}
     </div>
+  );
+}
+
+function SessionAnalysis({
+  playerId,
+  sessionId,
+}: {
+  playerId: string;
+  sessionId: string;
+}) {
+  const { api } = useAuth();
+  const [result, setResult] = useState<AnalystResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    api
+      .sessionAnalysis(playerId, sessionId)
+      .then((analysis) => {
+        if (active) setResult(analysis);
+      })
+      .catch((reason) => {
+        if (active && !(reason instanceof ApiError && reason.status === 404))
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Could not load analysis",
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, playerId, sessionId]);
+  async function generate() {
+    setLoading(true);
+    setError(null);
+    try {
+      setResult(
+        await api.analyzeSession(playerId, sessionId, crypto.randomUUID()),
+      );
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Analysis unavailable",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <section className="card card-pad stack" aria-label="Session AI analysis">
+      <div className="card-head">
+        <div>
+          <span className="eyebrow">PlayerIQ Analyst</span>
+          <h2 className="section-title">Session interpretation</h2>
+          <p className="section-subtitle">
+            An explanation of verified facts from this session and your history.
+          </p>
+        </div>
+        <Sparkles size={19} className="text-emerald-600" />
+      </div>
+      {result && <AnswerCard result={result} />}
+      {error && <ErrorState message={error} />}
+      <button
+        type="button"
+        className="btn btn-primary self-start"
+        onClick={() => void generate()}
+        disabled={loading}
+      >
+        {loading
+          ? "Analyzing your history…"
+          : result?.stale
+            ? "Regenerate current analysis"
+            : result
+              ? "Analyze again"
+              : "Analyze this session"}
+      </button>
+    </section>
   );
 }

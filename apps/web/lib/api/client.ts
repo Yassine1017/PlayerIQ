@@ -1,5 +1,8 @@
 import type {
   AnalyticsFact,
+  AnalystResponse,
+  ChatMessage,
+  ChatThread,
   ChartReview,
   Me,
   Outliers,
@@ -201,6 +204,52 @@ export class ApiClient {
     return this.request<Outliers>(
       `/v1/players/${playerId}/analytics/outliers?type=${type}&limit=${limit}`,
       { signal },
+    );
+  }
+  chats(playerId: string, cursor?: string, signal?: AbortSignal) {
+    const params = new URLSearchParams({ limit: "20" });
+    if (cursor) params.set("cursor", cursor);
+    return this.request<Page<ChatThread>>(
+      `/v1/players/${playerId}/chats?${params}`,
+      { signal },
+    );
+  }
+  createChat(playerId: string, title?: string) {
+    return this.request<ChatThread>(`/v1/players/${playerId}/chats`, {
+      method: "POST",
+      body: JSON.stringify({ title: title || null }),
+    });
+  }
+  chatMessages(playerId: string, threadId: string, cursor?: string) {
+    const params = new URLSearchParams({ limit: "30" });
+    if (cursor) params.set("cursor", cursor);
+    return this.request<Page<ChatMessage>>(
+      `/v1/players/${playerId}/chats/${threadId}/messages?${params}`,
+    );
+  }
+  askAnalyst(
+    playerId: string,
+    threadId: string,
+    question: string,
+    requestId: string,
+  ) {
+    return this.request<AnalystResponse>(
+      `/v1/players/${playerId}/chats/${threadId}/messages`,
+      {
+        method: "POST",
+        body: JSON.stringify({ question, request_id: requestId }),
+      },
+    );
+  }
+  sessionAnalysis(playerId: string, sessionId: string) {
+    return this.request<AnalystResponse>(
+      `/v1/players/${playerId}/sessions/${sessionId}/analysis`,
+    );
+  }
+  analyzeSession(playerId: string, sessionId: string, requestId: string) {
+    return this.request<AnalystResponse>(
+      `/v1/players/${playerId}/sessions/${sessionId}/analysis`,
+      { method: "POST", body: JSON.stringify({ request_id: requestId }) },
     );
   }
   async reportFile(id: string, signal?: AbortSignal): Promise<Blob> {

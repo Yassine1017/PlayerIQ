@@ -1,8 +1,8 @@
 # PlayerIQ
 
-PlayerIQ is a football GPS performance platform. Phases 1–4 provide an authenticated path from a supported text PDF to explicitly linked player sessions, uploader-confirmed chart labels, deterministic historical analytics, and a responsive Next.js web application. Committed tests use synthetic data. The AI Analyst and chat are later phases.
+PlayerIQ is a football GPS performance platform. Phases 1–5 provide an authenticated path from a supported text PDF to explicitly linked player sessions, uploader-confirmed chart labels, deterministic historical analytics, a responsive Next.js web application, and a grounded AI Analyst. Committed tests use synthetic data.
 
-Architecture and source data decisions: [SPEC.md](docs/SPEC.md), [GPS_DATA_MODEL.md](docs/GPS_DATA_MODEL.md), [INGESTION.md](docs/INGESTION.md), and [AUTH.md](docs/AUTH.md).
+Architecture and source data decisions: [SPEC.md](docs/SPEC.md), [GPS_DATA_MODEL.md](docs/GPS_DATA_MODEL.md), [INGESTION.md](docs/INGESTION.md), [AUTH.md](docs/AUTH.md), and [AI_ANALYST.md](docs/AI_ANALYST.md).
 
 ## Development setup
 
@@ -53,6 +53,12 @@ npm run dev
 
 Open `http://localhost:3000`. Sign up or sign in with a confirmed Supabase Auth email account. On first use, enter a display name, IANA time zone, and player profile name. Upload a supported PDF, wait for the worker, inspect the source athlete rows, view the uploader-only private PDF, manually propose and confirm exact page-2 Maximum Velocity/Player Load labels, then explicitly link a ready row to the owned player. The dashboard, sessions, and analytics pages load accepted history. The frontend does not call Supabase Data API or compute analytical statistics; FastAPI is the authorization and calculation boundary. The frontend type contracts in `apps/web/lib/api/types.ts` are maintained against FastAPI's `/openapi.json`.
 
+### AI Analyst setup
+
+The Analyst uses the OpenAI Responses API from FastAPI only. Set `OPENAI_API_KEY` in the ignored root `.env` on the backend host; never put it in `apps/web/.env.local` or a `NEXT_PUBLIC_` variable. `OPENAI_MODEL` defaults to `gpt-6-luna`. The `.env.example` AI settings bound provider timeout, tool calls, question/context/result sizes, response length, date range, and daily runs per actor. Apply Alembic migration `0006_ai_analyst` with the privileged **PlayerIQ Dev** migration connection before testing AI routes with a restricted API login. No key is required for the fake-provider test suite. Without a configured key, chat creation is available but generation returns `ai_not_configured` (503).
+
+Visit `/app/analyst` to ask about accepted player history. Each answer displays verified facts, source-session links, an `analytics_v1` explanation, and a stale marker if accepted history changes. The session detail page can generate a scoped explanation. AI interpretation is separate from backend-calculated values. [AI_ANALYST.md](docs/AI_ANALYST.md) documents the fact registry, validation, privacy and retry policy.
+
 If email confirmation is enabled in Supabase Dev, confirm the signup email before signing in. The project must have a configured Auth redirect URL for `http://localhost:3000/app`. The standalone ingestion worker must be running for an upload to advance beyond queued/processing. No production Supabase project is needed for local development.
 
 ## Ingestion worker
@@ -87,8 +93,11 @@ All `/v1` routes require `Authorization: Bearer <Supabase access token>`:
 | `GET /v1/players/{player_id}/analytics/overview` | Versioned latest comparisons, top-speed record, highest recorded total-distance workload, highest-distance training session, and changes. |
 | `GET /v1/players/{player_id}/analytics/trend?metric=&from=&to=&type=` | Accepted-value points with session type, change, and eligible weekly slope. |
 | `GET /v1/players/{player_id}/analytics/outliers?type=&limit=` | Median/MAD workload results with source session IDs. |
+| `GET/POST /v1/players/{player_id}/sessions/{session_id}/analysis` | Read or generate a creator-private, fingerprinted explanation of an accepted linked session. |
+| `GET/POST /v1/players/{player_id}/chats` | List or create creator-private AI conversations. |
+| `GET/POST /v1/players/{player_id}/chats/{thread_id}/messages` | Paginated history or an idempotent grounded AI answer. |
 
-Only the reviewed Activity Report text-PDF layout is supported. Candidate rows do not become sessions by name matching. Chart labels require manual transcription and uploader confirmation against the page-2 PDF chart; no OCR or bar-height estimation runs. The exact human-confirmed label becomes authoritative. A confirmed post-link correction updates the accepted metric and changes the player-history fingerprint. Speed readings above the configured review value stay held. `Player Load` is a source index of unknown definition, so its history is stored but cross-session comparisons are `not_comparable` until a verified definition/configuration is available. Zero-recorded and review-needed rows are held. The analytics domain is pure and shared by HTTP and future AI tools; every result carries `analytics_v1`. Coach invitations and coach writes are deferred; coach read grants already have a structural authorization path, but no invitation endpoint is present.
+Only the reviewed Activity Report text-PDF layout is supported. Candidate rows do not become sessions by name matching. Chart labels require manual transcription and uploader confirmation against the page-2 PDF chart; no OCR or bar-height estimation runs. The exact human-confirmed label becomes authoritative. A confirmed post-link correction updates the accepted metric and changes the player-history fingerprint. Speed readings above the configured review value stay held. `Player Load` is a source index of unknown definition, so its history is stored but cross-session comparisons are `not_comparable` until a verified definition/configuration is available. Zero-recorded and review-needed rows are held. The analytics domain is pure and shared by HTTP and the Phase 5 AI tools; every result carries `analytics_v1`. Coach invitations and coach writes are deferred; coach read grants already have a structural authorization path, but no invitation endpoint is present.
 
 ## Tests and privacy
 

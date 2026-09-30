@@ -172,6 +172,72 @@ export interface Page<T> {
   next_cursor: string | null;
 }
 
+export interface AnalystFact {
+  fact_id: string;
+  kind: string;
+  metric_key: string | null;
+  role: string;
+  raw_value: string;
+  display_value: string;
+  unit: string;
+  rule_version: string;
+  status: string;
+  sample_size: number;
+  source_session_ids: string[];
+  source_observation_ids: string[];
+  definition_id: string | null;
+  comparability_key: string | null;
+}
+export interface AnalystAnswer {
+  status: "answered" | "insufficient_data" | "unavailable";
+  sentences: { text: string; fact_ids: string[]; session_ids: string[] }[];
+}
+export interface AnalystResponse {
+  run_id: string;
+  player_id: string;
+  thread_id: string | null;
+  session_id: string | null;
+  answer: AnalystAnswer;
+  facts: AnalystFact[];
+  results: {
+    tool: string;
+    items: {
+      kind: string;
+      status: string;
+      metric_key: string | null;
+      fact_ids: string[];
+      session_ids: string[];
+      source_observation_ids: string[];
+      source_ids_truncated: boolean;
+      from_date: string | null;
+      to_date: string | null;
+      note: string | null;
+      rule_version: string;
+    }[];
+  }[];
+  generated_at: string | null;
+  model: string;
+  provider: string;
+  prompt_version: string;
+  analytics_rule_version: string;
+  history_fingerprint: string;
+  stale: boolean;
+}
+export interface ChatThread {
+  id: string;
+  player_id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  question: string | null;
+  analysis: AnalystResponse | null;
+  created_at: string;
+}
+
 export const metricLabels: Record<string, string> = {
   total_distance_m: "Total Distance",
   reported_high_speed_distance_m: "High-Speed Distance",

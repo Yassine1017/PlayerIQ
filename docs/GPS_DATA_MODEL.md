@@ -53,7 +53,7 @@ A configurable review rule flags a maximum velocity above 45 km/h while preservi
 
 ## Deterministic calculations and future fields
 
-After explicit row-to-player linking, pure versioned backend functions calculate historical changes, comparisons, personal records, and workload anomalies from accepted stored metrics. The HTTP layer and future AI Analyst share the same analytics service. Each result includes `analytics_v1`, source session/observation IDs, and a history fingerprint for cache invalidation. The LLM may explain those results but cannot invent numerical facts. Future adapters could add vendor zone definitions, athlete duration, and more providers only when reliable source evidence is available. No such values are inferred by the current adapter.
+After explicit row-to-player linking, pure versioned backend functions calculate historical changes, comparisons, personal records, and workload anomalies from accepted stored metrics. The HTTP layer and Phase 5 AI Analyst share the same analytics service. Each result includes `analytics_v1` and source session/observation IDs; a history fingerprint detects stale saved analyses. The LLM may explain those results but cannot invent numerical facts. Future adapters could add vendor zone definitions, athlete duration, and more providers only when reliable source evidence is available. No such values are inferred by the current adapter.
 
 ## Current adapter limits
 

@@ -1,7 +1,7 @@
 # PlayerIQ — V1 Product and Technical Specification
 
-- **Status:** V1 target architecture; Phases 1–4 (foundation, authenticated ingestion, chart-label review, deterministic analytics, and web frontend) are implemented. AI and deployment phases remain planned.
-- **Date:** 2026-09-29
+- **Status:** V1 target architecture; Phases 1–5 (foundation, authenticated ingestion, chart-label review, deterministic analytics, web frontend, and grounded AI Analyst/chat) are implemented. Deployment remains planned.
+- **Date:** 2026-09-30
 - **Audience:** Product, frontend, backend, data, and AI developers.
 
 ## 1. Purpose and V1 boundary
@@ -10,15 +10,15 @@ PlayerIQ turns GPS reports into a reliable personal history, deterministic perfo
 
 The core promise is **traceable numbers**. Extraction may fail visibly; an unsupported or ambiguous value must not become a metric. SQL/Python functions calculate all numerical results. The LLM selects read-only tools and explains their outputs. It cannot query arbitrary SQL, calculate statistics, write data, or make medical or injury diagnoses.
 
-### Implemented backend scope through Phase 3
+### Implemented backend scope through Phase 5
 
-The current backend supports the reviewed Activity Report text-PDF layout only. It verifies Supabase asymmetric JWTs, stores uploads in a private bucket, processes durable ingestion jobs with a restricted worker role, presents uploader-only candidate rows, and links one `ready` row at a time to the uploader's **own** player profile. Accepted athlete metrics retain source-observation IDs. `zero_recorded` and `needs_review` rows remain unlinked. The current link route accepts one mapping per request and returns a single session; multiple authorized mappings require separate calls. Phase 3 adds uploader-confirmed manual capture of the two page-2 chart labels and a versioned deterministic analytics engine with overview, trend, and outlier endpoints. Phase 4 adds an uploader-only, paginated upload-list endpoint and includes session type on trend points. The overview now includes a highest recorded total-distance workload fact alongside the confirmed top-speed record. An active coach grant may read a player, but coach invitations, coach writes, CSV support, delete/retention flows, and AI are not implemented. The broader V1 acceptance criteria and route descriptions below are targets for later phases. See [AUTH.md](AUTH.md) and [INGESTION.md](INGESTION.md) for the implemented contract.
+The current backend supports the reviewed Activity Report text-PDF layout only. It verifies Supabase asymmetric JWTs, stores uploads in a private bucket, processes durable ingestion jobs with a restricted worker role, presents uploader-only candidate rows, and links one `ready` row at a time to the uploader's **own** player profile. Accepted athlete metrics retain source-observation IDs. `zero_recorded` and `needs_review` rows remain unlinked. The current link route accepts one mapping per request and returns a single session; multiple authorized mappings require separate calls. Phase 3 adds uploader-confirmed manual capture of the two page-2 chart labels and a versioned deterministic analytics engine with overview, trend, and outlier endpoints. Phase 4 adds an uploader-only, paginated upload-list endpoint and includes session type on trend points. The overview includes a highest recorded total-distance workload fact alongside the confirmed top-speed record. Phase 5 adds the grounded AI Analyst, creator-private chat, and accepted-session analysis. An active coach grant may read a player, but coach invitations, coach writes, CSV support, and delete/retention flows remain future work. See [AUTH.md](AUTH.md), [INGESTION.md](INGESTION.md), and [AI_ANALYST.md](AI_ANALYST.md) for the implemented contracts.
 
-### Implemented web scope through Phase 4
+### Implemented web scope through Phase 5
 
 `apps/web` is a Next.js App Router, strict TypeScript, Tailwind web client. Supabase JS owns browser sign-in, signup, session persistence, and refresh. The client sends a fresh Supabase access token to FastAPI for every request; FastAPI remains the access decision and analytical calculation boundary. The web app has first-use profile/player setup, an authenticated shell, dashboard, uploader-only upload history and review, manual chart-value proposal and confirmation, explicit row linking, player sessions, trends, and workload outliers. The frontend uses the existing `analytics_v1` decimal-string facts and never computes comparisons, slopes, records, or MAD scores. It shows unavailable and noncomparable states instead of synthetic zeros. The desktop layout uses a dark navy sidebar and light analytical workspace; smaller viewports use a mobile drawer and scrollable tables. Charts have a text/table alternative.
 
-The report viewer obtains the private PDF with the uploader's Bearer token and displays a temporary browser Blob URL, revoked when closed. This is a local view, not a public Storage URL. The only frontend environment values are the public Supabase URL/key and API origin. The first browser smoke test covered the sign-in screen at desktop and mobile sizes; `/readyz` confirmed the local backend's development database connection. A confirmed PlayerIQ Dev Auth user is still needed for an authenticated live browser journey because email confirmation is enabled; see [README.md](../README.md) for exact steps. There is no AI or chat UI in Phase 4.
+The report viewer obtains the private PDF with the uploader's Bearer token and displays a temporary browser Blob URL, revoked when closed. This is a local view, not a public Storage URL. The only frontend environment values are the public Supabase URL/key and API origin. The first browser smoke test covered the sign-in screen at desktop and mobile sizes; `/readyz` confirmed the local backend's development database connection. A confirmed PlayerIQ Dev Auth user is still needed for an authenticated live browser journey because email confirmation is enabled; see [README.md](../README.md) for exact steps. Phase 5 adds the AI Analyst and chat UI on top of this Phase 4 baseline.
 
 The Phase 2 migration grants restricted API/worker roles, revokes browser grants on the private schema, adds RLS policies, and forces RLS on domain tables. A follow-up migration secures Alembic's public version table. Phase 3 migration `0005` adds chart review audit and narrow update policies. The schema and policy metadata were verified in the PlayerIQ development Supabase project; distinct restricted runtime logins and a read-only live RLS test pass. Authenticated end-to-end HTTP requests still need verification with a development user. `/readyz` checks the database and restricted API-role membership.
 
@@ -171,11 +171,11 @@ Base path `/v1`; JSON responses except multipart upload and authorized raw-file 
 | `GET /v1/players/{player_id}/analytics/overview` | Latest comparison, confirmed Maximum Velocity record, highest recorded total-distance workload, hardest training session, and latest outlier flags from deterministic functions. |
 | `GET /v1/players/{player_id}/analytics/trend?metric=&from=&to=&type=` | Ordered series with source session type and backend trend result. Validate metric against registry. |
 | `GET /v1/players/{player_id}/analytics/outliers?type=&limit=` | Explainable workload flags and baselines. |
-| `GET /v1/players/{player_id}/sessions/{session_id}/analysis` | Future AI session analysis. |
-| `POST /v1/players/{player_id}/sessions/{session_id}/analysis` | Future AI analysis generation. |
-| `POST /v1/players/{player_id}/chats`, `GET /v1/players/{player_id}/chats` | Future player-scoped AI chat threads. |
-| `GET /v1/players/{player_id}/chats/{thread_id}/messages` | Future chat history. |
-| `POST /v1/players/{player_id}/chats/{thread_id}/messages` | Future grounded AI chat response. |
+| `GET /v1/players/{player_id}/sessions/{session_id}/analysis` | Latest creator-private saved AI session analysis, with current/stale status. |
+| `POST /v1/players/{player_id}/sessions/{session_id}/analysis` | Idempotent grounded AI analysis generation for an accepted session. |
+| `POST /v1/players/{player_id}/chats`, `GET /v1/players/{player_id}/chats` | Creator-private AI chat threads, cursor paginated on read. |
+| `GET /v1/players/{player_id}/chats/{thread_id}/messages` | Creator-private cursor-paginated chat history. |
+| `POST /v1/players/{player_id}/chats/{thread_id}/messages` | Idempotent grounded AI response with fact registry and source links. |
 
 Implemented mutations use bearer-token requests, idempotency where retries are likely, and per-player authorization checks. API schemas reject unknown enum values and invalid or unbounded implemented parameters. The web client's TypeScript response contracts are maintained against the FastAPI OpenAPI schema; automatic type generation remains a later tooling improvement.
 
@@ -248,7 +248,7 @@ The system instruction forbids medical/injury diagnoses and says workload outlie
 | `/app/analytics` | Backend metric trend with date/type selectors, accessible chart and underlying table, overview facts, and workload outliers. |
 | `/app/profile` | Profile display name/timezone editing and player access summary. Coach invitations and deletion controls are future work. |
 
-Chat, AI interpretation, public marketing, invitation acceptance, and data export/deletion UI are future views; they are not implemented in Phase 4.
+Phase 5 implements chat and AI interpretation in `/app/analyst`, with an analysis panel on accepted session detail. Public marketing, invitation acceptance, and data export/deletion UI remain future work.
 
 Design direction: restrained sports analytics interface with strong typography, metric cards, legible charts, and distinct evidence/AI panels. Use responsive layouts and keyboard-accessible controls. Charts have text/table equivalents, units in labels, color-independent outlier indicators, and tooltips explaining definitions. The AI explanation is visually labeled as interpretation; computed values and cited sessions are separate, inspectable elements. Loading, partial-data, no-history, unsupported-report, and API-failure states must be designed, not left to generic error pages.
 
@@ -268,7 +268,7 @@ CI gates: formatter/linter/type checker for Python and TypeScript, calculation/p
 
 ## 11. Implementation sequence and open product decisions
 
-Completed sequence: (1) report/athlete/player schema, access model, and metric registry; (2) worker and reviewed text-PDF adapter with synthetic fixture and explicit row link; (3) reviewer-confirmed manual capture of PDF chart labels for Maximum Velocity and Player Load, plus deterministic analytics/API tests; (4) authenticated dashboard, report review, player sessions, trends, and outliers. Remaining: (5) AI tool runner and audit; (6) chat and grounding verification; (7) deployment/observability and authenticated live flow verification. Canonical CSV and general OCR remain future ingestion work. Tests and demos use synthetic or explicitly permitted fixtures; the supplied original PDF is not modified.
+Completed sequence: (1) report/athlete/player schema, access model, and metric registry; (2) worker and reviewed text-PDF adapter with synthetic fixture and explicit row link; (3) reviewer-confirmed manual capture of PDF chart labels for Maximum Velocity and Player Load, plus deterministic analytics/API tests; (4) authenticated dashboard, report review, player sessions, trends, and outliers; (5) read-only OpenAI Responses tool runner, fact registry, grounded-answer validation, audit, creator-private chat, and AI Analyst UI. Remaining Phase 6: deployment, operational hardening, authenticated live-flow verification, and portfolio polish. Canonical CSV and general OCR remain future ingestion work. Tests and demos use synthetic or explicitly permitted fixtures; the supplied original PDF is not modified.
 
 Decisions to confirm before coding: which row-link multiplicity and consent workflow the V1 UI should support; the source vendor and metric/zone definitions (currently unavailable); whether the PDF header time is activity start and its timezone; the meaning of zero-filled rows and anomalous values; and report/audit retention and regional data residency requirements. See [GPS_DATA_MODEL.md](GPS_DATA_MODEL.md) for the public source-format model. The architecture does not depend on a particular provider or email vendor.
 

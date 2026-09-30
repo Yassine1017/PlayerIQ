@@ -7,6 +7,8 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.ai.provider import OpenAIProvider
+from app.api.ai import router as ai_router
 from app.api.analytics import router as analytics_router
 from app.api.errors import register_exception_handlers
 from app.api.health import router as health_router
@@ -37,6 +39,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.jwt_verifier = SupabaseJWTVerifier(settings) if settings.supabase_url else None
     app.state.storage = (
         SupabaseReportStorage(settings) if settings.supabase_url and settings.supabase_storage_secret_key else None
+    )
+    app.state.ai_provider = (
+        OpenAIProvider(
+            key=settings.openai_api_key,
+            model=settings.openai_model,
+            timeout_seconds=settings.ai_request_timeout_seconds,
+            max_tool_calls=settings.ai_max_tool_calls,
+        )
+        if settings.openai_api_key
+        else None
     )
     app.add_middleware(
         CORSMiddleware,
@@ -69,6 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(v1_router)
     app.include_router(analytics_router)
+    app.include_router(ai_router)
     return app
 
 

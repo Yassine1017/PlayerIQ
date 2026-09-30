@@ -350,7 +350,10 @@ class ChatThread(Base, UuidId, CreatedAt):
 
 class AiRun(Base, UuidId, CreatedAt):
     __tablename__ = "ai_runs"
-    __table_args__ = (Index("ix_ai_runs_player_created", "player_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_ai_runs_player_created", "player_id", "created_at"),
+        UniqueConstraint("actor_user_id", "player_id", "idempotency_key", name="uq_ai_runs_actor_player_idempotency"),
+    )
 
     player_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.players.id"), nullable=False)
     actor_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
@@ -358,8 +361,11 @@ class AiRun(Base, UuidId, CreatedAt):
     session_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.player_sessions.id"))
     message_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
     status: Mapped[str] = mapped_column(String(30), nullable=False)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False, default="openai")
     model: Mapped[str] = mapped_column(String(100), nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(60), nullable=False)
+    analytics_rule_version: Mapped[str] = mapped_column(String(40), nullable=False, default="analytics_v1")
+    idempotency_key: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True))
     data_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     evidence_snapshot: Mapped[dict] = mapped_column(JSON_VALUE, nullable=False, default=dict)
     response_json: Mapped[dict | None] = mapped_column(JSON_VALUE)

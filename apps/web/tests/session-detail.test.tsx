@@ -9,7 +9,14 @@ vi.mock("next/navigation", () => ({ useParams: () => ({ sessionId: "s1" }) }));
 vi.mock("@/components/layout/app-frame", () => ({
   useApp: () => ({ player: { id: "p1", display_name: "Synthetic Player" } }),
 }));
-vi.mock("@/lib/auth/provider", () => ({ useAuth: () => ({ api: {} }) }));
+vi.mock("@/lib/auth/provider", () => ({
+  useAuth: () => ({
+    api: {
+      sessionAnalysis: () =>
+        Promise.reject(new ApiError("analysis_not_found", "Not found", 404)),
+    },
+  }),
+}));
 vi.mock("@/lib/data/use-resource", () => ({ useResource: () => mocks.result }));
 afterEach(cleanup);
 it("shows accepted session values, missing chart data, and provenance", () => {

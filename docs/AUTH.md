@@ -1,5 +1,7 @@
 # Phase 2 authentication and database security
 
+Phase 5 migration `0006_ai_analyst` keeps AI runs, tool-call audit, chat threads, and chat messages in the private `playeriq` schema. The restricted API login receives SELECT/INSERT on these tables and UPDATE only for AI run completion; browser `anon`/`authenticated` roles receive none. Runs and audits belong to their actor and require current player access. Threads and messages belong to their creator, so a player cannot read a coach's chat or vice versa. Revoking a coach grant removes access on the next request. See [AI_ANALYST.md](AI_ANALYST.md) for the provider/data boundary. `OPENAI_API_KEY` is a backend-only environment variable.
+
 ## Request trust path
 
 Supabase Auth issues an access token. The browser sends it as a Bearer token to FastAPI. FastAPI reads the project JWKS at `SUPABASE_URL/auth/v1/.well-known/jwks.json` (cached for at most `JWKS_CACHE_SECONDS`) and verifies an asymmetric signature, `iss`, `aud`, `exp`, and UUID `sub`. HS256 tokens, missing key IDs, anonymous users, and invalid tokens are rejected. Only the verified UUID becomes the application actor. Editable user metadata, request bodies, and frontend roles cannot grant access. When keys are unavailable, authentication fails closed with 503.
