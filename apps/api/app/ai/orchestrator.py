@@ -3,17 +3,19 @@
 import hashlib
 import json
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from time import monotonic
-from typing import Any
+from typing import Any, TypeVar
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.ai.budget import BudgetExhausted, BudgetService, UnknownModelPricing
 from app.ai.grounding import GroundingError, unavailable_answer, validate_answer
-from app.ai.provider import AIProvider
+from app.ai.provider import AIProvider, ProviderAnswer, ProviderTurn
 from app.ai.tools import FactRegistry, ToolError, execute_tool, tool_schemas, validate_args
 from app.analytics.domain import ANALYTICS_RULE_VERSION
 from app.api.errors import AppError
@@ -27,6 +29,7 @@ from app.services.authorization import require_player
 
 logger = logging.getLogger(__name__)
 PROMPT_VERSION = "analyst_v1"
+ProviderResult = TypeVar("ProviderResult", ProviderTurn, ProviderAnswer)
 
 
 def require_thread(session: Session, actor_id: UUID, player_id: UUID, thread_id: UUID) -> ChatThread:
@@ -86,6 +89,7 @@ def _run_out(run: AiRun, current_fingerprint: str, *, thread_id: UUID | None = N
             "analytics_rule_version": run.analytics_rule_version,
             "history_fingerprint": run.data_fingerprint,
             "stale": run.data_fingerprint != current_fingerprint,
+            "error_code": run.error_code,
         }
     )
 
@@ -118,6 +122,21 @@ class Analyst:
         self.settings = settings
         self.actor_id = actor_id
         self.player_id = player_id
+
+    def _billed_call(self, run_id: UUID, invoke: Callable[[], ProviderResult]) -> ProviderResult:
+        if self.provider.provider_name != "openai":
+            return invoke()
+        budget = BudgetService(self.database, self.settings, self.actor_id)
+        request_id = budget.reserve(run_id, self.settings.openai_model)
+        try:
+            result = invoke()
+        except Exception:
+            # A timeout can follow a billable request. Keep the hold rather than
+            # treating unknown usage as free; the SDK has no automatic retries.
+            budget.uncertain(request_id, self.settings.openai_model)
+            raise
+        budget.settle(request_id, self.settings.openai_model, result.input_tokens, result.output_tokens)
+        return result
 
     def _reserve(
         self, question: str, request_id: UUID, *, thread_id: UUID | None, session_id: UUID | None
@@ -279,7 +298,8 @@ class Analyst:
                     json.dumps({"session_id": str(session_id)}),
                     registry,
                 )
-            turn = self.provider.select(question, self._context(thread_id), tool_schemas())
+            context = self._context(thread_id)
+            turn = self._billed_call(run_id, lambda: self.provider.select(question, context, tool_schemas()))
             input_tokens += turn.input_tokens or 0
             output_tokens += turn.output_tokens or 0
             outputs: list[tuple[str, str]] = []
@@ -314,7 +334,11 @@ class Analyst:
                     else None
                 )
                 try:
-                    proposal = self.provider.answer(question, turn, outputs, registry.snapshot(), feedback)
+
+                    def request_answer(current_feedback: str | None = feedback) -> ProviderAnswer:
+                        return self.provider.answer(question, turn, outputs, registry.snapshot(), current_feedback)
+
+                    proposal = self._billed_call(run_id, request_answer)
                     input_tokens += proposal.input_tokens or 0
                     output_tokens += proposal.output_tokens or 0
                     grounded = validate_answer(proposal.payload, registry)
@@ -326,6 +350,10 @@ class Analyst:
                     error_code = "invalid_provider_answer"
             else:
                 error_code = error_code or "invalid_provider_answer"
+        except BudgetExhausted:
+            error_code = "ai_budget_exhausted"
+        except UnknownModelPricing:
+            error_code = "ai_pricing_unavailable"
         except ToolError as exc:
             error_code = exc.code
         except Exception as exc:

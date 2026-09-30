@@ -2,6 +2,7 @@
 
 from app.models.tables import (
     ActivityReport,
+    AiProviderRequest,
     AiRun,
     AiToolCall,
     ChartMetricReview,
@@ -23,6 +24,7 @@ from app.models.tables import (
 
 __all__ = [
     "ActivityReport",
+    "AiProviderRequest",
     "AiRun",
     "AiToolCall",
     "ChartMetricReview",

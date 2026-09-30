@@ -154,8 +154,9 @@ class OpenAIProvider:
         usage = response.usage
         try:
             payload = json.loads(response.output_text)
-        except (json.JSONDecodeError, TypeError) as exc:
-            raise ValueError("invalid_provider_answer") from exc
+        except (json.JSONDecodeError, TypeError):
+            # Preserve billable usage even when the model's JSON is invalid.
+            payload = {}
         return ProviderAnswer(
             payload=payload,
             input_tokens=usage.input_tokens if usage else None,

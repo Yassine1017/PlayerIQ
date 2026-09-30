@@ -53,6 +53,7 @@ export function AnswerCard({ result }: { result: AnalystResponse }) {
       ),
     ),
   );
+  const budgetExhausted = result.error_code === "ai_budget_exhausted";
   return (
     <article className="analyst-answer" aria-label="PlayerIQ Analyst answer">
       <div className="analyst-answer-head">
@@ -78,23 +79,31 @@ export function AnswerCard({ result }: { result: AnalystResponse }) {
         </div>
       )}
       <div className="analyst-prose">
-        {result.answer.sentences.map((sentence, index) => (
-          <p key={index}>
-            {sentence.text}
-            {sentence.fact_ids.length > 0 && (
-              <span className="analyst-inline-facts">
-                {sentence.fact_ids.map((id) => {
-                  const fact = facts.get(id);
-                  return fact ? (
-                    <span className="analyst-inline-fact" key={id}>
-                      {fact.display_value} {fact.unit === "%" ? "" : fact.unit}
-                    </span>
-                  ) : null;
-                })}
-              </span>
-            )}
+        {budgetExhausted ? (
+          <p>
+            AI Analyst is temporarily unavailable because this month&apos;s AI
+            usage limit has been reached.
           </p>
-        ))}
+        ) : (
+          result.answer.sentences.map((sentence, index) => (
+            <p key={index}>
+              {sentence.text}
+              {sentence.fact_ids.length > 0 && (
+                <span className="analyst-inline-facts">
+                  {sentence.fact_ids.map((id) => {
+                    const fact = facts.get(id);
+                    return fact ? (
+                      <span className="analyst-inline-fact" key={id}>
+                        {fact.display_value}{" "}
+                        {fact.unit === "%" ? "" : fact.unit}
+                      </span>
+                    ) : null;
+                  })}
+                </span>
+              )}
+            </p>
+          ))
+        )}
       </div>
       {limitations.length > 0 && (
         <div className="analyst-limitations" role="note">

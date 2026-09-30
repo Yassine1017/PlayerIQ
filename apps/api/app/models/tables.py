@@ -389,6 +389,29 @@ class AiToolCall(Base, UuidId, CreatedAt):
     duration_ms: Mapped[int | None] = mapped_column(Integer)
 
 
+class AiProviderRequest(Base, UuidId, CreatedAt):
+    """One durable reservation and usage record per billable provider request."""
+
+    __tablename__ = "ai_provider_requests"
+    __table_args__ = (
+        CheckConstraint("status IN ('reserved','completed','uncertain','unknown_pricing')", name="status"),
+        CheckConstraint("reserved_cost_usd >= 0", name="reserved_cost_nonnegative"),
+        CheckConstraint("estimated_cost_usd IS NULL OR estimated_cost_usd >= 0", name="estimated_cost_nonnegative"),
+        Index("ix_ai_provider_requests_month", "budget_month", "created_at"),
+    )
+
+    ai_run_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.ai_runs.id"), nullable=False)
+    budget_month: Mapped[date] = mapped_column(Date, nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    pricing_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    reserved_cost_usd: Mapped[Decimal] = mapped_column(Numeric(18, 9), nullable=False)
+    estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 9))
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ChatMessage(Base, UuidId, CreatedAt):
     __tablename__ = "chat_messages"
     __table_args__ = (

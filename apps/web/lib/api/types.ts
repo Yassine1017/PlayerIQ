@@ -222,6 +222,7 @@ export interface AnalystResponse {
   analytics_rule_version: string;
   history_fingerprint: string;
   stale: boolean;
+  error_code?: string | null;
 }
 export interface ChatThread {
   id: string;

@@ -65,6 +65,7 @@ class AnalystResponse(StrictModel):
     analytics_rule_version: str
     history_fingerprint: str
     stale: bool
+    error_code: str | None = None
 
 
 class MessageOut(StrictModel):

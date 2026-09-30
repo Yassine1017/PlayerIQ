@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     distance_peer_review_multiplier: Decimal = Field(default=Decimal("3"), gt=1)
     openai_api_key: str | None = None
     openai_model: str = "gpt-6-luna"
+    ai_monthly_budget_usd: Decimal = Field(default=Decimal("5.00"), gt=0)
+    ai_budget_reserve_usd: Decimal = Field(default=Decimal("0.10"), ge=0)
     ai_request_timeout_seconds: int = Field(default=25, ge=5, le=120)
     ai_max_tool_calls: int = Field(default=4, ge=1, le=8)
     ai_max_provider_attempts: int = Field(default=2, ge=1, le=3)

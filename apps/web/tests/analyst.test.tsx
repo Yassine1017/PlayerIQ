@@ -139,6 +139,35 @@ it("marks historical analysis stale", () => {
   );
 });
 
+it("shows a controlled message when the shared AI budget is exhausted", () => {
+  render(
+    <AnswerCard
+      result={{
+        ...result,
+        error_code: "ai_budget_exhausted",
+        answer: {
+          status: "unavailable",
+          sentences: [
+            {
+              text: "Generic unavailable answer.",
+              fact_ids: [],
+              session_ids: [],
+            },
+          ],
+        },
+        facts: [],
+        results: [],
+      }}
+    />,
+  );
+  expect(
+    screen.getByText(/this month's AI usage limit has been reached/i),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText("Generic unavailable answer."),
+  ).not.toBeInTheDocument();
+});
+
 it("explains missing, noncomparable, and ambiguous results in plain language", () => {
   render(
     <AnswerCard
