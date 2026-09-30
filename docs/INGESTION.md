@@ -28,6 +28,8 @@ Validation maps known athlete labels through `metrics_v1`, checks numeric integr
 
 The uploader-only status response includes activity metadata, each candidate's source name/position, source observations, missing labels, quality state, findings, and existing links. The user must choose a row UUID and player UUID. The link transaction checks uploader ownership, player ownership, row membership, upload state, row eligibility, duplicate links, and same-player/date conflicts. It revalidates stored observations and copies only accepted athlete metrics with references to their source observations. Team averages, chart-only missing metrics, suspect metrics, and activity duration are never promoted as player values. `zero_recorded` and `needs_review` rows return a review-required error. Repeating the same accepted link is idempotent.
 
+Phase 4 adds an uploader-only `GET /v1/report-uploads?limit=&cursor=` list for the frontend's recent upload history. It returns filename, status, creation/processing time, error code, and row count after processing; it does not expose candidate rows. The web client polls a single report every five seconds only while it is received, queued, extracting, or validating. The review page requires deliberate row selection, manual page-2 proposal and confirmation, and an explicit link action; source names never trigger linking.
+
 The raw PDF and unlinked teammate rows remain available only to the uploader. Ordinary player-session endpoints expose only accepted linked metrics, row-specific warnings, date/type/quality, and provenance IDs. A linked player does not gain access to the team PDF. Full authentication and role details are in [AUTH.md](AUTH.md).
 
 ## Phase 3 chart-label review

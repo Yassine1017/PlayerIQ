@@ -42,6 +42,7 @@ class SessionValue:
 class TrendPoint:
     session_id: UUID
     local_date: date
+    session_type: str
     value: Decimal
     source_observation_id: UUID
 
@@ -269,7 +270,7 @@ def metric_trend(
     values = [_metric(item, metric_key) for item in ordered]
     metrics = [value for value in values if value is not None]
     points = tuple(
-        TrendPoint(item.id, item.local_date, metric.value, metric.source_observation_id)
+        TrendPoint(item.id, item.local_date, item.session_type, metric.value, metric.source_observation_id)
         for item, metric in zip(ordered, metrics, strict=True)
     )
     ids, sources = _evidence(ordered, metric_key)
@@ -349,6 +350,7 @@ def personal_record(sessions: list[SessionValue], metric_key: str = "maximum_vel
         sample_size=len(selected),
         session_ids=tuple(item.id for item, _ in ties),
         source_observation_ids=tuple(value.source_observation_id for _, value in ties),
+        to_date=ties[0][0].local_date,
         definition_id=metric.definition_id,
         comparability_key=metric.comparability_key,
         note="highest_recorded_workload" if metric_key != "maximum_velocity_kmh" else None,
@@ -394,6 +396,7 @@ def hardest_session(sessions: list[SessionValue], metric_key: str = "total_dista
         session_ids=tuple(item.id for item, _ in ties),
         source_observation_ids=tuple(value.source_observation_id for _, value in ties),
         supporting_metrics=context,
+        to_date=ties[0][0].local_date,
         definition_id=metric.definition_id,
         comparability_key=metric.comparability_key,
         note=f"highest_recorded_{metric_key}",

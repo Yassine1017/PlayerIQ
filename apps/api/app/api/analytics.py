@@ -55,6 +55,7 @@ def _fact_out(value: AnalyticsFact) -> AnalyticsFactOut:
             TrendPointOut(
                 session_id=point.session_id,
                 local_date=point.local_date,
+                session_type=point.session_type,
                 value=str(point.value),
                 source_observation_id=point.source_observation_id,
             )

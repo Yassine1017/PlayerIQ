@@ -81,6 +81,21 @@ class UploadCreated(StrictModel):
     status: str
 
 
+class UploadSummaryOut(StrictModel):
+    upload_id: UUID
+    original_filename: str
+    status: str
+    created_at: datetime
+    processed_at: datetime | None
+    athlete_row_count: int | None
+    error_code: str | None
+
+
+class UploadsOut(StrictModel):
+    items: list[UploadSummaryOut]
+    next_cursor: str | None
+
+
 class SourceMetricOut(StrictModel):
     source_label: str
     raw_value: str | None

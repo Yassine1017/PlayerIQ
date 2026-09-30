@@ -1,0 +1,187 @@
+"use client";
+
+import { ArrowLeft, CheckCircle2, FileClock, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useCallback } from "react";
+import { useApp } from "@/components/layout/app-frame";
+import { ErrorState, Loading, EmptyState } from "@/components/ui/states";
+import { Status } from "@/components/ui/status";
+import { useAuth } from "@/lib/auth/provider";
+import { ApiError } from "@/lib/api/client";
+import { useResource } from "@/lib/data/use-resource";
+import { dateLabel, metricDisplay, metricOf } from "@/lib/format";
+import { metricLabels } from "@/lib/api/types";
+
+const primary = [
+  "total_distance_m",
+  "reported_high_speed_distance_m",
+  "maximum_velocity_kmh",
+  "player_load_reported",
+];
+export default function SessionDetail() {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const { api } = useAuth();
+  const { player } = useApp();
+  const load = useCallback(
+    (signal: AbortSignal) => api.session(player.id, sessionId, signal),
+    [api, player.id, sessionId],
+  );
+  const resource = useResource(`session:${player.id}:${sessionId}`, load);
+  const session = resource.data;
+  return (
+    <div className="stack">
+      <div className="page-heading">
+        <div>
+          <Link
+            href="/app/sessions"
+            className="inline-link flex items-center gap-1"
+          >
+            <ArrowLeft size={14} /> Back to sessions
+          </Link>
+          <span className="eyebrow mt-4 block">Accepted player history</span>
+          <h1 className="page-title">
+            Session · {dateLabel(session?.local_date)}
+          </h1>
+          <p className="page-subtitle capitalize">
+            {session?.session_type ?? "Loading session"} · {player.display_name}
+          </p>
+        </div>
+        {session && <Status value={session.quality_state} />}
+      </div>
+      {resource.error ? (
+        <ErrorState
+          message={
+            resource.error instanceof ApiError && resource.error.status === 404
+              ? "This session is unavailable to this account."
+              : resource.error.message
+          }
+          onRetry={resource.refresh}
+        />
+      ) : resource.loading && !session ? (
+        <Loading label="Loading session details…" />
+      ) : (
+        session && (
+          <>
+            <div className="metric-grid">
+              {primary.map((key) => {
+                const metric = metricOf(session, key);
+                return (
+                  <div className="card metric-card" key={key}>
+                    <div className="metric-label">{metricLabels[key]}</div>
+                    <div className="metric-value mt-4">
+                      {metric ? metricDisplay(metric.value, metric.unit) : "—"}
+                    </div>
+                    <div className="metric-detail">
+                      {metric
+                        ? "Accepted value"
+                        : "Not available in this session"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="detail-grid">
+              <section className="card card-pad">
+                <div className="card-head">
+                  <div>
+                    <h2 className="section-title">Accepted metrics</h2>
+                    <p className="section-subtitle">
+                      Exact stored values and their reported units
+                    </p>
+                  </div>
+                  <CheckCircle2 size={19} className="text-emerald-600" />
+                </div>
+                {session.metrics.length ? (
+                  <div className="table-wrap">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Metric</th>
+                          <th>Value</th>
+                          <th>Report label</th>
+                          <th>Quality</th>
+                          <th>Source definition</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {session.metrics.map((item) => (
+                          <tr key={item.metric_key}>
+                            <td className="font-bold">
+                              {metricLabels[item.metric_key] ??
+                                item.source_label}
+                            </td>
+                            <td>{metricDisplay(item.value, item.unit)}</td>
+                            <td>{item.source_label}</td>
+                            <td>
+                              <Status value={item.quality_state} />
+                            </td>
+                            <td>
+                              {item.definition_id ?? "Definition unverified"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <EmptyState title="No accepted metrics">
+                    Held or missing values are excluded from the accepted metric
+                    list.
+                  </EmptyState>
+                )}
+              </section>
+              <div className="stack">
+                <section className="card card-pad">
+                  <div className="card-head">
+                    <h2 className="section-title">Source & provenance</h2>
+                    <ShieldCheck size={18} className="text-emerald-600" />
+                  </div>
+                  <div className="key-value">
+                    <span>Report reference</span>
+                    <strong className="font-mono text-[10px]">
+                      {session.provenance.report_upload_id}
+                    </strong>
+                  </div>
+                  <div className="key-value">
+                    <span>Athlete row reference</span>
+                    <strong className="font-mono text-[10px]">
+                      {session.provenance.source_athlete_row_id}
+                    </strong>
+                  </div>
+                  <p className="helper mt-3">
+                    This session contains only the linked athlete’s accepted
+                    values. The full team PDF remains private to its uploader.
+                  </p>
+                </section>
+                <section className="card card-pad">
+                  <div className="card-head">
+                    <h2 className="section-title">Validation notes</h2>
+                    <FileClock size={18} className="text-blue-500" />
+                  </div>
+                  {session.warnings.length ? (
+                    <ul className="grid gap-3">
+                      {session.warnings.map((item, index) => (
+                        <li
+                          key={`${item.code}:${index}`}
+                          className="text-xs leading-5 text-slate-600"
+                        >
+                          <Status value={item.severity} />{" "}
+                          <span className="ml-1">{item.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="helper mb-0">
+                      No validation warnings on this accepted session.
+                    </p>
+                  )}
+                </section>
+              </div>
+            </div>
+          </>
+        )
+      )}
+    </div>
+  );
+}

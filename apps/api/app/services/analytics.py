@@ -52,9 +52,11 @@ class AnalyticsService:
     def overview(self) -> AnalyticsOverview:
         facts = (
             self.latest_comparison("total_distance_m"),
+            self.latest_comparison("reported_high_speed_distance_m"),
             self.latest_comparison("maximum_velocity_kmh"),
             self.latest_comparison("player_load_reported"),
             self.personal_record("maximum_velocity_kmh"),
+            self.personal_record("total_distance_m"),
             self.hardest_session(),
             self.largest_change(improvement=True),
             self.largest_change(improvement=False),

@@ -30,12 +30,13 @@ from app.schemas.v1 import (
     SessionOut,
     SessionsOut,
     UploadCreated,
+    UploadsOut,
     UploadStatusOut,
 )
 from app.services.authorization import require_player, require_upload
 from app.services.chart_reviews import confirm_chart_value, list_chart_reviews, propose_chart_value
 from app.services.linking import link_athlete_row
-from app.services.reading import get_session, list_sessions, upload_status
+from app.services.reading import get_session, list_sessions, list_uploads, upload_status
 from app.services.storage import ReportStorage, get_storage
 from app.services.uploads import create_upload
 
@@ -147,6 +148,17 @@ async def upload_report(
         return UploadCreated(upload_id=upload.id, status=upload.status)
     finally:
         await file.close()
+
+
+@router.get("/report-uploads", response_model=UploadsOut)
+def report_uploads(
+    user: User,
+    database: DB,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    cursor: Annotated[str | None, Query(max_length=128)] = None,
+) -> UploadsOut:
+    with database.user_transaction(user.id) as session:
+        return list_uploads(session, user.id, limit=limit, cursor=cursor)
 
 
 @router.get("/report-uploads/{upload_id}", response_model=UploadStatusOut)

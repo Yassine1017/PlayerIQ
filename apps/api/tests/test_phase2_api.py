@@ -90,6 +90,29 @@ def _upload(client: TestClient, content: bytes, who: str = "owner") -> dict:
     return response.json()
 
 
+def test_uploader_only_upload_history_is_cursor_paginated(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings], synthetic_pdf: bytes
+) -> None:
+    client, _, _, _ = phase2
+    first = _upload(client, synthetic_pdf)["upload_id"]
+    second = _upload(client, synthetic_pdf + b"\n% second synthetic report")["upload_id"]
+    _upload(client, synthetic_pdf, "other")
+    assert client.get("/v1/report-uploads").status_code == 401
+    page = client.get("/v1/report-uploads?limit=1", headers=_auth())
+    assert page.status_code == 200, page.text
+    assert len(page.json()["items"]) == 1
+    assert page.json()["items"][0]["upload_id"] in {first, second}
+    assert page.json()["items"][0]["athlete_row_count"] is None
+    next_page = client.get(
+        "/v1/report-uploads", headers=_auth(), params={"limit": 1, "cursor": page.json()["next_cursor"]}
+    )
+    assert next_page.status_code == 200, next_page.text
+    assert {page.json()["items"][0]["upload_id"], next_page.json()["items"][0]["upload_id"]} == {first, second}
+    assert next_page.json()["next_cursor"] is None
+    assert len(client.get("/v1/report-uploads", headers=_auth("other")).json()["items"]) == 1
+    assert client.get("/v1/report-uploads?cursor=%%%", headers=_auth()).status_code == 400
+
+
 def test_authenticated_upload_review_link_and_read(
     phase2: tuple[TestClient, Database, FakeStorage, Settings], synthetic_pdf: bytes
 ) -> None:

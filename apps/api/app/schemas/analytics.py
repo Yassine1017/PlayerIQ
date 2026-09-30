@@ -11,6 +11,7 @@ class TrendPointOut(BaseModel):
 
     session_id: UUID
     local_date: date
+    session_type: str
     value: str
     source_observation_id: UUID
 

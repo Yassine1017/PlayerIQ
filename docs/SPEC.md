@@ -1,6 +1,6 @@
 # PlayerIQ — V1 Product and Technical Specification
 
-- **Status:** V1 target architecture; Phases 1–3 (foundation, authenticated ingestion, chart-label review, and deterministic analytics) are implemented. Frontend and AI phases remain planned.
+- **Status:** V1 target architecture; Phases 1–4 (foundation, authenticated ingestion, chart-label review, deterministic analytics, and web frontend) are implemented. AI and deployment phases remain planned.
 - **Date:** 2026-09-29
 - **Audience:** Product, frontend, backend, data, and AI developers.
 
@@ -12,7 +12,13 @@ The core promise is **traceable numbers**. Extraction may fail visibly; an unsup
 
 ### Implemented backend scope through Phase 3
 
-The current backend supports the reviewed Activity Report text-PDF layout only. It verifies Supabase asymmetric JWTs, stores uploads in a private bucket, processes durable ingestion jobs with a restricted worker role, presents uploader-only candidate rows, and links one `ready` row at a time to the uploader's **own** player profile. Accepted athlete metrics retain source-observation IDs. `zero_recorded` and `needs_review` rows remain unlinked. The current link route accepts one mapping per request and returns a single session; multiple authorized mappings require separate calls. Phase 3 adds uploader-confirmed manual capture of the two page-2 chart labels and a versioned deterministic analytics engine with overview, trend, and outlier endpoints. An active coach grant may read a player, but coach invitations, coach writes, CSV support, delete/retention flows, the frontend, and AI are not implemented. The broader V1 acceptance criteria and route descriptions below are targets for later phases. See [AUTH.md](AUTH.md) and [INGESTION.md](INGESTION.md) for the implemented contract.
+The current backend supports the reviewed Activity Report text-PDF layout only. It verifies Supabase asymmetric JWTs, stores uploads in a private bucket, processes durable ingestion jobs with a restricted worker role, presents uploader-only candidate rows, and links one `ready` row at a time to the uploader's **own** player profile. Accepted athlete metrics retain source-observation IDs. `zero_recorded` and `needs_review` rows remain unlinked. The current link route accepts one mapping per request and returns a single session; multiple authorized mappings require separate calls. Phase 3 adds uploader-confirmed manual capture of the two page-2 chart labels and a versioned deterministic analytics engine with overview, trend, and outlier endpoints. Phase 4 adds an uploader-only, paginated upload-list endpoint and includes session type on trend points. The overview now includes a highest recorded total-distance workload fact alongside the confirmed top-speed record. An active coach grant may read a player, but coach invitations, coach writes, CSV support, delete/retention flows, and AI are not implemented. The broader V1 acceptance criteria and route descriptions below are targets for later phases. See [AUTH.md](AUTH.md) and [INGESTION.md](INGESTION.md) for the implemented contract.
+
+### Implemented web scope through Phase 4
+
+`apps/web` is a Next.js App Router, strict TypeScript, Tailwind web client. Supabase JS owns browser sign-in, signup, session persistence, and refresh. The client sends a fresh Supabase access token to FastAPI for every request; FastAPI remains the access decision and analytical calculation boundary. The web app has first-use profile/player setup, an authenticated shell, dashboard, uploader-only upload history and review, manual chart-value proposal and confirmation, explicit row linking, player sessions, trends, and workload outliers. The frontend uses the existing `analytics_v1` decimal-string facts and never computes comparisons, slopes, records, or MAD scores. It shows unavailable and noncomparable states instead of synthetic zeros. The desktop layout uses a dark navy sidebar and light analytical workspace; smaller viewports use a mobile drawer and scrollable tables. Charts have a text/table alternative.
+
+The report viewer obtains the private PDF with the uploader's Bearer token and displays a temporary browser Blob URL, revoked when closed. This is a local view, not a public Storage URL. The only frontend environment values are the public Supabase URL/key and API origin. The first browser smoke test covered the sign-in screen at desktop and mobile sizes; `/readyz` confirmed the local backend's development database connection. A confirmed PlayerIQ Dev Auth user is still needed for an authenticated live browser journey because email confirmation is enabled; see [README.md](../README.md) for exact steps. There is no AI or chat UI in Phase 4.
 
 The Phase 2 migration grants restricted API/worker roles, revokes browser grants on the private schema, adds RLS policies, and forces RLS on domain tables. A follow-up migration secures Alembic's public version table. Phase 3 migration `0005` adds chart review audit and narrow update policies. The schema and policy metadata were verified in the PlayerIQ development Supabase project; distinct restricted runtime logins and a read-only live RLS test pass. Authenticated end-to-end HTTP requests still need verification with a development user. `/readyz` checks the database and restricted API-role membership.
 
@@ -56,7 +62,7 @@ flowchart LR
 | Deployment | Vercel hosts web; a managed container host such as Render, Fly.io, or Railway hosts the API and worker in the same region as Supabase where practical. Separate processes may share one image. |
 | Python libraries | pandas is for parser tabular normalization and bounded analytical frames. Simple aggregates remain SQL/domain functions. scikit-learn is deliberately not needed for V1's explainable robust outlier rule. |
 
-Suggested repository layout when implementation begins: `apps/web`, `apps/api` (HTTP routes, domain services, repositories, provider adapters, AI orchestrator), `apps/worker`, `db/migrations`, `tests`, and `docs`. Keep one shared metric registry in the backend and generate or version TypeScript API types from OpenAPI rather than duplicating formulas in the frontend.
+Implemented repository layout: `apps/web` (authenticated UI and typed API client), `apps/api` (HTTP routes, domain services, repositories, and PDF adapter), `db/migrations`, tests, and docs. The ingestion worker is a separate Python CLI process in `apps/api`. The TypeScript API contracts are maintained against FastAPI OpenAPI; only the backend metric registry and analytics domain calculate performance facts.
 
 ### Trust and authorization boundary
 
@@ -140,37 +146,38 @@ No cross-player ranking in V1. No diagnosis, injury probability, or readiness pr
 
 ## 6. API contract
 
-Base path `/v1`; JSON responses except multipart upload and authorized raw-file download. Authenticated endpoints require `Authorization: Bearer <Supabase access JWT>`. Path `player_id` never implies permission. Shared pagination uses opaque cursor and capped `limit`; list responses include `next_cursor`. Errors use `{ "error": { "code": "...", "message": "...", "request_id": "...", "details": {} } }` with safe, actionable messages. Typical statuses: 400 malformed input, 401 missing/invalid auth, 403 unauthorized role, 404 inaccessible or absent resource, 409 duplicate/conflict, 413 oversized upload, 415 unsupported type, 422 validation/review needed, 429 rate limit, 500/503 server/dependency failure.
+Base path `/v1`; JSON responses except multipart upload and authorized raw-file download. Authenticated endpoints require `Authorization: Bearer <Supabase access JWT>`. Path `player_id` never implies permission. List endpoints use opaque cursors and capped `limit`; responses include `next_cursor`. Errors use `{ "error": { "code": "...", "message": "...", "request_id": "...", "details": {} } }` with safe, actionable messages. This table contains both implemented routes and future V1 targets; future routes are marked below.
 
 | Method and path | Purpose and response |
 |---|---|
 | `GET /healthz`, `GET /readyz` | Process health and dependency readiness; no user data. |
 | `GET /v1/me`, `PATCH /v1/me` | Profile and timezone preferences. Changing timezone affects future ingestion, not stored local dates. |
 | `POST /v1/players`, `GET /v1/players`, `GET /v1/players/{player_id}` | Create own V1 record; list owned and coach-granted records; get player summary. |
-| `POST /v1/players/{player_id}/coach-invitations` | Owner invites an email; backend sends a single-use link via server-side email provider and returns invitation metadata, never the token. Rate limited. |
-| `POST /v1/coach-invitations/accept` | Authenticated matching recipient accepts a single-use token. |
-| `GET /v1/players/{player_id}/coaches`, `DELETE /v1/players/{player_id}/coaches/{user_id}` | Owner lists and revokes grants. |
-| `POST /v1/report-uploads` | Authenticated multipart `file`; 202 `{upload_id,status}` or 409 duplicate for uploader. Max 10 MB; CSV/PDF MIME and magic checks. No player is assigned by filename/name matching. |
+| `POST /v1/players/{player_id}/coach-invitations` | Future: owner invitation and server-side email delivery. |
+| `POST /v1/coach-invitations/accept` | Future: authenticated matching recipient accepts a single-use token. |
+| `GET /v1/players/{player_id}/coaches`, `DELETE /v1/players/{player_id}/coaches/{user_id}` | Future: owner lists and revokes grants. |
+| `POST /v1/report-uploads` | Authenticated multipart `file`; 202 `{upload_id,status}` or 409 duplicate for uploader. Max 10 MB; currently only the supported PDF layout is accepted. No player is assigned by filename/name matching. |
+| `GET /v1/report-uploads?limit=&cursor=` | Implemented uploader-only, cursor-paginated upload history and extracted row count when ready. |
 | `GET /v1/report-uploads/{upload_id}` | Uploader-only processing status, report metadata, candidate athlete rows, per-row quality findings, and existing links. This endpoint may show teammate names, so it is not a player-scoped endpoint. |
 | `GET /v1/report-uploads/{upload_id}/chart-reviews` | Implemented uploader-only review history for the report's two page-2 chart metrics. |
 | `POST /v1/report-uploads/{upload_id}/chart-reviews` | Implemented proposal of an exact printed label for a selected ready source row UUID; does not accept the metric yet. |
 | `POST /v1/report-uploads/{upload_id}/chart-reviews/{review_id}/confirm` | Implemented uploader confirmation of matching raw label; creates source observation and updates a linked session if accepted. Suspicious speed stays held. |
-| `POST /v1/report-uploads/{upload_id}/links` | Uploader selects one or several `{source_athlete_row_id, player_id, session_type}` mappings; each target player requires current owner/coach permission. Returns linked/held session IDs and row-level errors. Idempotent; zero or suspect rows cannot become accepted silently. |
+| `POST /v1/report-uploads/{upload_id}/links` | Implemented one `{source_athlete_row_id, player_id, session_type}` mapping per request to the uploader's own player. Idempotent; zero or suspect rows cannot become accepted silently. |
 | `GET /v1/report-uploads/{upload_id}/file` | Uploader-only short-lived download or stream of the entire raw report. Linked player access alone is insufficient. |
-| `DELETE /v1/report-uploads/{upload_id}` | Uploader may remove the raw report only after active player links are removed; otherwise 409. Deletion job removes raw object and unlinked staging data. |
-| `DELETE /v1/players/{player_id}/sessions/{session_id}` | Player owner removes their linked session and derived metrics/AI cache without affecting other linked athletes; coach cannot delete. |
+| `DELETE /v1/report-uploads/{upload_id}` | Future: authorized raw-report deletion and retention workflow. |
+| `DELETE /v1/players/{player_id}/sessions/{session_id}` | Future: owner deletion and dependent analysis invalidation. |
 | `GET /v1/players/{player_id}/sessions` | Cursor page with dates, type, quality, metric preview; filters `from`, `to`, `type`. |
 | `GET /v1/players/{player_id}/sessions/{session_id}` | Only this player's metrics, units, provenance summary, and validation warnings; never exposes the other source athlete rows or raw team report. |
-| `GET /v1/players/{player_id}/analytics/overview` | Latest comparison, personal bests, and latest outlier flags from deterministic functions. |
-| `GET /v1/players/{player_id}/analytics/trend?metric=&from=&to=&type=` | Ordered series and backend trend result. Validate metric against registry. |
+| `GET /v1/players/{player_id}/analytics/overview` | Latest comparison, confirmed Maximum Velocity record, highest recorded total-distance workload, hardest training session, and latest outlier flags from deterministic functions. |
+| `GET /v1/players/{player_id}/analytics/trend?metric=&from=&to=&type=` | Ordered series with source session type and backend trend result. Validate metric against registry. |
 | `GET /v1/players/{player_id}/analytics/outliers?type=&limit=` | Explainable workload flags and baselines. |
-| `GET /v1/players/{player_id}/sessions/{session_id}/analysis` | Latest valid stored session analysis; `202` if generation is queued. |
-| `POST /v1/players/{player_id}/sessions/{session_id}/analysis` | Queue/regenerate analysis for current data fingerprint; return `202` with run ID. |
-| `POST /v1/players/{player_id}/chats`, `GET /v1/players/{player_id}/chats` | Create/list the current actor's player-scoped private chat threads. |
-| `GET /v1/players/{player_id}/chats/{thread_id}/messages` | Paged message history with source fact/session references. |
-| `POST /v1/players/{player_id}/chats/{thread_id}/messages` | Submit `{content, client_request_id}`; idempotent by client request ID, returns answer, evidence cards, AI run ID, and limitations. Could initially be synchronous with timeout, then move to streaming without changing semantic contract. |
+| `GET /v1/players/{player_id}/sessions/{session_id}/analysis` | Future AI session analysis. |
+| `POST /v1/players/{player_id}/sessions/{session_id}/analysis` | Future AI analysis generation. |
+| `POST /v1/players/{player_id}/chats`, `GET /v1/players/{player_id}/chats` | Future player-scoped AI chat threads. |
+| `GET /v1/players/{player_id}/chats/{thread_id}/messages` | Future chat history. |
+| `POST /v1/players/{player_id}/chats/{thread_id}/messages` | Future grounded AI chat response. |
 
-All mutations use CSRF-safe bearer-token requests, idempotency where retries are likely, and per-player authorization checks. API schemas reject unknown enum values, impossible dates, unbounded ranges, overlong chat messages, and unknown metric keys. OpenAPI is the contract used to generate web client types.
+Implemented mutations use bearer-token requests, idempotency where retries are likely, and per-player authorization checks. API schemas reject unknown enum values and invalid or unbounded implemented parameters. The web client's TypeScript response contracts are maintained against the FastAPI OpenAPI schema; automatic type generation remains a later tooling improvement.
 
 ## 7. Ingestion pipeline
 
@@ -189,7 +196,7 @@ Report states: `received → queued → extracting → validating → awaiting_l
 2. Worker atomically claims a due job with row locking, downloads the exact object key, and selects a versioned adapter. Parsing runs with time/memory/page limits and no external links/macros. CSV formula-like content is treated as plain text. A malformed file cannot block the queue.
 3. Extract report/period metadata and every listed athlete row at its true scope. Preserve raw values and locators; normalize only known units. The reviewed PDF has no athlete duration, timezone, session type, or zone thresholds; keep those unknown. Validate finite/nonnegative values, count integrality, cross-field distance bounds, zero rows, and suspect speed/effort clusters. A bad athlete row must not corrupt another row.
 4. Return candidate rows to the uploader. Accept explicit row-to-player mapping only after checking access to each target player. Reject duplicate links and ambiguous identity. Commit a player session and its accepted metric values/provenance atomically. Held rows never enter calculations. Session type supplied by uploader is recorded as a confirmed user classification; otherwise it remains `unknown`.
-5. Queue deterministic summary/AI analysis after an accepted link commits. Job retries use exponential backoff and a small capped attempt count; permanent parser/validation errors do not retry. An operator can inspect structured failure codes. Reprocessing under a new adapter version creates a deliberate revision path and invalidates stale analysis, never silently changes existing figures.
+5. Accepted links are immediately visible to the deterministic analytics service. The ingestion worker retries transient processing failures with a bounded attempt count; permanent parser/validation errors do not retry. Future AI generation and deliberate reprocessing revisions will use the player-history fingerprint to detect stale results.
 
 Original raw files and unlinked teammate rows remain private to the uploader/processing service. No raw PDF text is sent to OpenAI by default; the AI sees only the authorized player's validated metrics, deterministic facts, limited metadata, and source IDs. This reduces accidental disclosure and report-borne prompt injection.
 
@@ -231,15 +238,17 @@ The system instruction forbids medical/injury diagnoses and says workload outlie
 
 | Route / view | Main content and states |
 |---|---|
-| `/` | Public product landing page with sample visuals, supported formats, transparent scope, sign-in CTA. No real user data in public previews. |
-| `/auth` | Sign up/sign in and invitation acceptance handoff using Supabase Auth. |
-| `/app` | Player selector for owner/coach access; latest session card, prominent Maximum Velocity and Player Load cards with reviewed values or unavailable states, small trend charts, personal best, outlier notices, and data coverage. Empty state explains the first upload. |
-| `/app/upload` | Drag/drop file, allowed formats and size, progress, queued/processing states, list of source athlete rows, explicit row-to-authorized-player linking, session-type confirmation, zero/suspect-row review state, duplicate handling. A player sees candidate rows only for a report they uploaded. |
-| `/app/sessions` | Filterable chronological history with metric columns and missing-value indicators. |
-| `/app/sessions/[id]` | Only the linked player's session metrics, source labels/units, quality notes, latest-versus-history comparison, and AI explanation. The full team PDF is downloadable only by its uploader through a separate control. |
-| `/app/trends` | Metric/date/type selectors, accessible chart and underlying table, sample size, definition, personal record, and workload flags. |
-| `/app/chat` | Player-scoped chat, example prompts, evidence cards linking to sessions, loading/error states, and clear limitation messages. |
-| `/app/settings` | Display name/timezone, coach invitations and revocation for owners, data export/deletion controls and privacy copy. |
+| `/` | Redirects to the authenticated app; the guard sends signed-out visitors to sign-in. A public landing page remains future work. |
+| `/auth/sign-in`, `/auth/sign-up` | Supabase email/password forms and email-confirmation handoff. Invitation acceptance is future work. |
+| `/app` | Authenticated dashboard with reviewed metric cards, backend trend, records, recent sessions, and data-quality states. |
+| `/app/upload` | PDF drag/drop, client-side format/size feedback, transfer progress, and uploader-only paginated upload history. |
+| `/app/uploads/[uploadId]` | Polling processing status, uploader-only candidate rows/private PDF view, manual chart-value review, session type, explicit owned-player link. |
+| `/app/sessions` | Paginated accepted player history with primary metric columns and missing indicators. |
+| `/app/sessions/[sessionId]` | Linked player's accepted metric list, provenance references, and validation notes. No AI explanation or team PDF exposure. |
+| `/app/analytics` | Backend metric trend with date/type selectors, accessible chart and underlying table, overview facts, and workload outliers. |
+| `/app/profile` | Profile display name/timezone editing and player access summary. Coach invitations and deletion controls are future work. |
+
+Chat, AI interpretation, public marketing, invitation acceptance, and data export/deletion UI are future views; they are not implemented in Phase 4.
 
 Design direction: restrained sports analytics interface with strong typography, metric cards, legible charts, and distinct evidence/AI panels. Use responsive layouts and keyboard-accessible controls. Charts have text/table equivalents, units in labels, color-independent outlier indicators, and tooltips explaining definitions. The AI explanation is visually labeled as interpretation; computed values and cited sessions are separate, inspectable elements. Loading, partial-data, no-history, unsupported-report, and API-failure states must be designed, not left to generic error pages.
 
@@ -259,7 +268,7 @@ CI gates: formatter/linter/type checker for Python and TypeScript, calculation/p
 
 ## 11. Implementation sequence and open product decisions
 
-Completed backend sequence: (1) report/athlete/player schema, access model, and metric registry; (2) worker and reviewed text-PDF adapter with synthetic fixture and explicit row link; (3) reviewer-confirmed manual capture of PDF chart labels for Maximum Velocity and Player Load, plus deterministic analytics/API tests. Remaining sequence: (4) dashboard/session pages; (5) AI tool runner and audit; (6) chat and grounding verification; (7) deployment/observability and full flow verification. Canonical CSV and general OCR remain future ingestion work. Tests and demos use synthetic or explicitly permitted fixtures; the supplied original PDF is not modified.
+Completed sequence: (1) report/athlete/player schema, access model, and metric registry; (2) worker and reviewed text-PDF adapter with synthetic fixture and explicit row link; (3) reviewer-confirmed manual capture of PDF chart labels for Maximum Velocity and Player Load, plus deterministic analytics/API tests; (4) authenticated dashboard, report review, player sessions, trends, and outliers. Remaining: (5) AI tool runner and audit; (6) chat and grounding verification; (7) deployment/observability and authenticated live flow verification. Canonical CSV and general OCR remain future ingestion work. Tests and demos use synthetic or explicitly permitted fixtures; the supplied original PDF is not modified.
 
 Decisions to confirm before coding: which row-link multiplicity and consent workflow the V1 UI should support; the source vendor and metric/zone definitions (currently unavailable); whether the PDF header time is activity start and its timezone; the meaning of zero-filled rows and anomalous values; and report/audit retention and regional data residency requirements. See [GPS_DATA_MODEL.md](GPS_DATA_MODEL.md) for the public source-format model. The architecture does not depend on a particular provider or email vendor.
 

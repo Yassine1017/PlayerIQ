@@ -1,0 +1,381 @@
+"use client";
+
+import {
+  BarChart3,
+  CircleUserRound,
+  House,
+  LogOut,
+  Menu,
+  UploadCloud,
+  X,
+  CalendarDays,
+  ChevronDown,
+} from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import type { Me, Player } from "@/lib/api/types";
+import { useAuth, authConfigured } from "@/lib/auth/provider";
+import { ErrorState, Loading } from "@/components/ui/states";
+
+interface AppContextValue {
+  me: Me;
+  players: Player[];
+  player: Player;
+  ownedPlayer: Player | null;
+  refreshIdentity: () => Promise<void>;
+  selectPlayer: (id: string) => void;
+}
+const AppContext = createContext<AppContextValue | null>(null);
+export function useApp() {
+  const value = useContext(AppContext);
+  if (!value) throw new Error("AppFrame is required");
+  return value;
+}
+
+const nav = [
+  { href: "/app", label: "Dashboard", icon: House },
+  { href: "/app/sessions", label: "My Sessions", icon: CalendarDays },
+  { href: "/app/upload", label: "Upload Report", icon: UploadCloud },
+  { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
+];
+
+export function AppFrame({ children }: { children: React.ReactNode }) {
+  const { session, loading: authLoading, api, signOut } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [identity, setIdentity] = useState<{
+    me: Me;
+    players: Player[];
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const refreshIdentity = useCallback(async () => {
+    try {
+      const [me, players] = await Promise.all([api.me(), api.players()]);
+      setIdentity({ me, players: players.items });
+      setError(null);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Could not load your profile",
+      );
+    }
+  }, [api]);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!session) {
+      router.replace("/auth/sign-in");
+      return;
+    }
+    const controller = new AbortController();
+    Promise.all([api.me(controller.signal), api.players(controller.signal)])
+      .then(([me, players]) => {
+        if (!controller.signal.aborted) {
+          setIdentity({ me, players: players.items });
+          setError(null);
+        }
+      })
+      .catch((reason) => {
+        if (!controller.signal.aborted)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Could not load your profile",
+          );
+      });
+    return () => controller.abort();
+  }, [authLoading, session, router, api]);
+  if (!authConfigured)
+    return (
+      <div className="min-h-screen grid place-items-center p-5">
+        <ErrorState message="Public Supabase configuration is missing. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to apps/web/.env.local." />
+      </div>
+    );
+  if (authLoading || !session || (!identity && !error))
+    return (
+      <div className="min-h-screen grid place-items-center p-5">
+        <Loading label="Opening your workspace…" />
+      </div>
+    );
+  if (error && !identity)
+    return (
+      <div className="min-h-screen grid place-items-center p-5">
+        <ErrorState message={error} onRetry={() => void refreshIdentity()} />
+      </div>
+    );
+  if (!identity) return null;
+  if (!identity.me.profile || identity.players.length === 0)
+    return (
+      <Onboarding
+        me={identity.me}
+        hasPlayer={identity.players.length > 0}
+        onDone={refreshIdentity}
+      />
+    );
+  const ownedPlayer =
+    identity.players.find(
+      (item) => item.owner_user_id === identity.me.user_id,
+    ) ?? null;
+  const player =
+    identity.players.find((item) => item.id === selectedId) ??
+    ownedPlayer ??
+    identity.players[0];
+  const selected = nav.find(
+    (item) =>
+      pathname === item.href ||
+      (item.href !== "/app" && pathname.startsWith(`${item.href}/`)),
+  );
+  const title = pathname.startsWith("/app/uploads/")
+    ? "Report Review"
+    : pathname.startsWith("/app/profile")
+      ? "Profile & Settings"
+      : (selected?.label ?? "PlayerIQ");
+  const initials = (identity.me.profile.display_name || player.display_name)
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase();
+  return (
+    <AppContext.Provider
+      value={{
+        me: identity.me,
+        players: identity.players,
+        player,
+        ownedPlayer,
+        refreshIdentity,
+        selectPlayer: setSelectedId,
+      }}
+    >
+      <div className="app-shell">
+        {mobileOpen && (
+          <button
+            type="button"
+            className="fixed inset-0 z-20 bg-slate-950/40"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close navigation"
+          />
+        )}
+        <aside
+          className={`sidebar ${mobileOpen ? "open" : ""}`}
+          aria-label="Primary navigation"
+        >
+          <div className="flex items-start justify-between px-3">
+            <Link href="/app" className="brand">
+              Player<span>IQ</span>
+              <small className="brand-tag">Performance intelligence</small>
+            </Link>
+            <button
+              type="button"
+              className="mobile-menu text-white"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="side-section">Workspace</div>
+          <nav>
+            {nav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={`nav-link ${pathname === item.href || (item.href !== "/app" && pathname.startsWith(`${item.href}/`)) ? "active" : ""}`}
+                aria-current={pathname === item.href ? "page" : undefined}
+              >
+                <item.icon size={17} />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="side-foot">
+            <div className="side-user">
+              <span className="avatar">{initials}</span>
+              <span>
+                <strong className="block text-white">
+                  {identity.me.profile.display_name}
+                </strong>
+                <span className="text-slate-400">PlayerIQ account</span>
+              </span>
+            </div>
+            <Link
+              href="/app/profile"
+              className={`nav-link ${pathname === "/app/profile" ? "active" : ""}`}
+            >
+              <CircleUserRound size={17} /> Profile & Settings
+            </Link>
+            <button
+              type="button"
+              className="nav-link"
+              onClick={() => void signOut()}
+            >
+              <LogOut size={17} /> Sign Out
+            </button>
+          </div>
+        </aside>
+        <div className="workspace">
+          <header className="topbar">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="mobile-menu btn btn-quiet !p-2"
+                onClick={() => setMobileOpen(true)}
+                aria-label="Open navigation"
+              >
+                <Menu size={18} />
+              </button>
+              <span className="topbar-title">
+                Workspace <span className="mx-2 text-slate-300">/</span>{" "}
+                <strong className="text-slate-800">{title}</strong>
+              </span>
+            </div>
+            <div className="topbar-right">
+              {identity.players.length > 1 ? (
+                <label className="relative">
+                  <span className="sr-only">Selected player</span>
+                  <select
+                    className="topbar-player pr-7"
+                    value={player.id}
+                    onChange={(event) => setSelectedId(event.target.value)}
+                  >
+                    {identity.players.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.display_name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={13}
+                    className="pointer-events-none absolute right-2 top-3"
+                  />
+                </label>
+              ) : (
+                <span className="topbar-player">{player.display_name}</span>
+              )}
+              <span className="avatar">{initials}</span>
+            </div>
+          </header>
+          <main className="content">
+            {error && (
+              <div className="error-box mb-4">
+                {error}{" "}
+                <button
+                  type="button"
+                  onClick={() => void refreshIdentity()}
+                  className="underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {children}
+          </main>
+        </div>
+      </div>
+    </AppContext.Provider>
+  );
+}
+
+function Onboarding({
+  me,
+  hasPlayer,
+  onDone,
+}: {
+  me: Me;
+  hasPlayer: boolean;
+  onDone: () => Promise<void>;
+}) {
+  const { api } = useAuth();
+  const [name, setName] = useState(me.profile?.display_name ?? "");
+  const [playerName, setPlayerName] = useState("");
+  const [timezone, setTimezone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      if (!me.profile)
+        await api.updateMe({ display_name: name.trim(), timezone });
+      if (!hasPlayer) await api.createPlayer(playerName.trim());
+      await onDone();
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Could not save setup",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="min-h-screen grid place-items-center p-5">
+      <div className="card card-pad w-full max-w-lg">
+        <span className="eyebrow">Welcome to PlayerIQ</span>
+        <h1 className="page-title mt-2">Set up your workspace</h1>
+        <p className="page-subtitle mb-6">
+          Create your profile and choose the player you’ll track. Reports are
+          linked only when you explicitly select an athlete row.
+        </p>
+        <form onSubmit={(event) => void submit(event)} className="grid gap-4">
+          {!me.profile && (
+            <>
+              <label className="field">
+                Your display name
+                <input
+                  className="input"
+                  required
+                  maxLength={160}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                Time zone
+                <input
+                  className="input"
+                  required
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                />
+              </label>
+            </>
+          )}
+          {!hasPlayer && (
+            <label className="field">
+              Player profile name
+              <input
+                className="input"
+                required
+                maxLength={160}
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="Name used in PlayerIQ"
+              />
+            </label>
+          )}
+          {error && (
+            <div className="error-box" role="alert">
+              {error}
+            </div>
+          )}
+          <button type="submit" disabled={busy} className="btn btn-primary">
+            {busy ? "Saving…" : "Open dashboard"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}

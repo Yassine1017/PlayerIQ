@@ -1,6 +1,6 @@
 # PlayerIQ
 
-PlayerIQ is a football GPS performance platform. Phases 1–3 provide an authenticated backend path from a supported text PDF to explicitly linked player sessions, uploader-confirmed chart labels, and deterministic historical analytics. Committed tests generate a synthetic report in memory. The frontend and AI Analyst are later phases.
+PlayerIQ is a football GPS performance platform. Phases 1–4 provide an authenticated path from a supported text PDF to explicitly linked player sessions, uploader-confirmed chart labels, deterministic historical analytics, and a responsive Next.js web application. Committed tests use synthetic data. The AI Analyst and chat are later phases.
 
 Architecture and source data decisions: [SPEC.md](docs/SPEC.md), [GPS_DATA_MODEL.md](docs/GPS_DATA_MODEL.md), [INGESTION.md](docs/INGESTION.md), and [AUTH.md](docs/AUTH.md).
 
@@ -29,6 +29,32 @@ The command above uses `DATABASE_URL` for the privileged **migration** connectio
 
 `GET /healthz` reports process health. `GET /readyz` probes the database and verifies that the login is a restricted API-role member; it returns 503 when the database is unconfigured or unavailable.
 
+## Frontend setup
+
+The Next.js app is in `apps/web`. It uses Supabase Auth in the browser and sends its access token to FastAPI. Set **only public values** in an ignored `apps/web/.env.local` (copy `apps/web/.env.example`):
+
+| Frontend variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL of the **PlayerIQ Dev** Supabase project for local development. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Enabled public publishable key from that same project. |
+| `NEXT_PUBLIC_API_URL` | Browser-reachable FastAPI origin, normally `http://localhost:8000`. |
+
+These variables are deliberately browser-visible. `DATABASE_URL`, `WORKER_DATABASE_URL`, `SUPABASE_STORAGE_SECRET_KEY`, and all database credentials remain **server-only** in the root `.env`. Never put them in an app/web file or in `NEXT_PUBLIC_` variables. Ensure the backend `CORS_ORIGINS` includes the exact frontend origin (the default is `http://localhost:3000`). Use the same Supabase project for frontend Auth and backend JWT verification.
+
+Start the API as above, run the ingestion worker in another terminal, then start the frontend:
+
+```powershell
+cd apps/web
+Copy-Item .env.example .env.local
+# Replace the three public placeholders in .env.local.
+npm ci
+npm run dev
+```
+
+Open `http://localhost:3000`. Sign up or sign in with a confirmed Supabase Auth email account. On first use, enter a display name, IANA time zone, and player profile name. Upload a supported PDF, wait for the worker, inspect the source athlete rows, view the uploader-only private PDF, manually propose and confirm exact page-2 Maximum Velocity/Player Load labels, then explicitly link a ready row to the owned player. The dashboard, sessions, and analytics pages load accepted history. The frontend does not call Supabase Data API or compute analytical statistics; FastAPI is the authorization and calculation boundary. The frontend type contracts in `apps/web/lib/api/types.ts` are maintained against FastAPI's `/openapi.json`.
+
+If email confirmation is enabled in Supabase Dev, confirm the signup email before signing in. The project must have a configured Auth redirect URL for `http://localhost:3000/app`. The standalone ingestion worker must be running for an upload to advance beyond queued/processing. No production Supabase project is needed for local development.
+
 ## Ingestion worker
 
 The API queues a durable job after a private upload. Run the deterministic worker command from another terminal or schedule it on the backend host:
@@ -49,6 +75,7 @@ All `/v1` routes require `Authorization: Bearer <Supabase access token>`:
 | `GET /v1/me`, `PATCH /v1/me` | Read or create/update the user's profile. |
 | `POST /v1/players`, `GET /v1/players`, `GET /v1/players/{player_id}` | Create and read authorized player profiles. |
 | `POST /v1/report-uploads` | Upload a supported multipart PDF and queue ingestion. |
+| `GET /v1/report-uploads?limit=&cursor=` | Uploader-only, cursor-paginated upload history with processing status and extracted row count when ready. |
 | `GET /v1/report-uploads/{upload_id}` | Uploader-only status, findings, and candidate athlete rows. |
 | `GET /v1/report-uploads/{upload_id}/chart-reviews` | Uploader-only chart proposal/review history. |
 | `POST /v1/report-uploads/{upload_id}/chart-reviews` | Propose an exact printed page-2 `Player Load` or `Maximum Velocity` label for a selected source row UUID. |
@@ -57,8 +84,8 @@ All `/v1` routes require `Authorization: Bearer <Supabase access token>`:
 | `GET /v1/report-uploads/{upload_id}/file` | Uploader-only private report download. |
 | `GET /v1/players/{player_id}/sessions` | Authorized, paginated accepted sessions. |
 | `GET /v1/players/{player_id}/sessions/{session_id}` | Authorized session metrics and source provenance. |
-| `GET /v1/players/{player_id}/analytics/overview` | Versioned latest comparisons, top-speed record, highest-distance training session, and changes. |
-| `GET /v1/players/{player_id}/analytics/trend?metric=&from=&to=&type=` | Accepted-value points, change, and eligible weekly slope. |
+| `GET /v1/players/{player_id}/analytics/overview` | Versioned latest comparisons, top-speed record, highest recorded total-distance workload, highest-distance training session, and changes. |
+| `GET /v1/players/{player_id}/analytics/trend?metric=&from=&to=&type=` | Accepted-value points with session type, change, and eligible weekly slope. |
 | `GET /v1/players/{player_id}/analytics/outliers?type=&limit=` | Median/MAD workload results with source session IDs. |
 
 Only the reviewed Activity Report text-PDF layout is supported. Candidate rows do not become sessions by name matching. Chart labels require manual transcription and uploader confirmation against the page-2 PDF chart; no OCR or bar-height estimation runs. The exact human-confirmed label becomes authoritative. A confirmed post-link correction updates the accepted metric and changes the player-history fingerprint. Speed readings above the configured review value stay held. `Player Load` is a source index of unknown definition, so its history is stored but cross-session comparisons are `not_comparable` until a verified definition/configuration is available. Zero-recorded and review-needed rows are held. The analytics domain is pure and shared by HTTP and future AI tools; every result carries `analytics_v1`. Coach invitations and coach writes are deferred; coach read grants already have a structural authorization path, but no invitation endpoint is present.
@@ -73,3 +100,17 @@ python -m mypy apps/api/app
 ```
 
 Unit/API tests use generated keys, fabricated users, an in-memory fake Storage service, SQLite integration, and a synthetic PDF. Optional read-only development Supabase checks are described in [AUTH.md](docs/AUTH.md) and are disabled by default. The optional private-report test uses `PLAYERIQ_LOCAL_REPORT` only when explicitly set and never commits report data. `sample-data/` remains ignored except for its README.
+
+Frontend checks:
+
+```powershell
+cd apps/web
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+### Authenticated development smoke test
+
+Use only a confirmed **PlayerIQ Dev** account and a synthetic report. Start API, worker, and frontend. In the browser: sign in → complete onboarding → verify dashboard empty states → upload a synthetic PDF → watch queued/processing/ready state → select a ready synthetic athlete row → propose and explicitly confirm its page-2 labels → link to your owned player → open the created session → inspect the dashboard, trend, and outlier states. A second account must receive 404 for the uploader's report and private PDF. This run is not automated by the repository because it requires a confirmed development account; the local Phase 4 check verified `/readyz` and the public sign-in screen but did not use a private GPS report or create an unconfirmable Auth user.

@@ -3,10 +3,10 @@
 import base64
 import binascii
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.errors import AppError
@@ -29,8 +29,74 @@ from app.schemas.v1 import (
     SessionProvenanceOut,
     SessionsOut,
     SourceMetricOut,
+    UploadsOut,
     UploadStatusOut,
+    UploadSummaryOut,
 )
+
+
+def list_uploads(session: Session, actor_id: UUID, *, limit: int, cursor: str | None = None) -> UploadsOut:
+    row_count = (
+        select(func.count(SourceAthleteRow.id))
+        .where(SourceAthleteRow.report_upload_id == ReportUpload.id)
+        .correlate(ReportUpload)
+        .scalar_subquery()
+    )
+    query = select(ReportUpload, row_count).where(
+        ReportUpload.uploaded_by_user_id == actor_id,
+        ReportUpload.status != "deleted",
+    )
+    if cursor:
+        cursor_at, cursor_id = _decode_upload_cursor(cursor)
+        # SQLite's CURRENT_TIMESTAMP stores whole seconds while its DateTime bind
+        # adds ".000000". Normalize both sides for the synthetic test database.
+        if session.bind is not None and session.bind.dialect.name == "sqlite":
+            ordered_at = func.strftime("%Y-%m-%d %H:%M:%f", ReportUpload.created_at)
+            cutoff = cursor_at.strftime("%Y-%m-%d %H:%M:%S.%f")[:23]
+            query = query.where(or_(ordered_at < cutoff, and_(ordered_at == cutoff, ReportUpload.id < cursor_id)))
+        else:
+            query = query.where(
+                or_(
+                    ReportUpload.created_at < cursor_at,
+                    and_(ReportUpload.created_at == cursor_at, ReportUpload.id < cursor_id),
+                )
+            )
+    found = session.execute(
+        query.order_by(ReportUpload.created_at.desc(), ReportUpload.id.desc()).limit(limit + 1)
+    ).all()
+    page = found[:limit]
+    next_cursor = _encode_upload_cursor(page[-1][0]) if len(found) > limit else None
+    return UploadsOut(
+        items=[
+            UploadSummaryOut(
+                upload_id=upload.id,
+                original_filename=upload.original_filename,
+                status=upload.status,
+                created_at=upload.created_at,
+                processed_at=upload.processed_at,
+                athlete_row_count=count if upload.status == "awaiting_link" else None,
+                error_code=upload.error_code,
+            )
+            for upload, count in page
+        ],
+        next_cursor=next_cursor,
+    )
+
+
+def _encode_upload_cursor(value: ReportUpload) -> str:
+    raw = f"{value.created_at.isoformat()}|{value.id}".encode("ascii")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_upload_cursor(value: str) -> tuple[datetime, UUID]:
+    try:
+        if len(value) > 128:
+            raise ValueError("Cursor too long")
+        raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4)).decode("ascii")
+        at_text, id_text = raw.split("|", 1)
+        return datetime.fromisoformat(at_text), UUID(id_text)
+    except (binascii.Error, UnicodeError, ValueError) as exc:
+        raise AppError("invalid_cursor", "Invalid upload cursor", 400) from exc
 
 
 def _finding_out(value: IngestionFinding) -> FindingOut:

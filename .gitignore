@@ -12,5 +12,9 @@ htmlcov/
 *.egg-info/
 build/
 dist/
+node_modules/
+.next/
+*.tsbuildinfo
+coverage/
 sample-data/*
 !sample-data/README.md
