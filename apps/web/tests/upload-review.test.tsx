@@ -139,4 +139,45 @@ describe("uploader review flow", () => {
     );
     expect(screen.queryByText("Session linked")).not.toBeInTheDocument();
   });
+  it("shows automatic, review, and unavailable chart states", () => {
+    mocks.upload = {
+      ...base,
+      candidate_rows: [
+        {
+          ...row,
+          metrics: [
+            ...row.metrics,
+            {
+              source_label: "Maximum Velocity",
+              raw_value: "29.75",
+              raw_unit: "km/h",
+              parsed_value: "29.75",
+              quality_state: "accepted",
+              source_locator: "p2 chart method:pdf_position",
+            },
+            {
+              source_label: "Player Load",
+              raw_value: "420",
+              raw_unit: null,
+              parsed_value: "420",
+              quality_state: "needs_review",
+              source_locator: "p2 chart method:ocr confidence:0.91",
+            },
+          ],
+        },
+        {
+          ...row,
+          id: "r-missing",
+          row_ordinal: 4,
+          source_name: "Synthetic Other",
+        },
+      ],
+    };
+    render(<UploadReviewPage />);
+    expect(screen.getByText("29.75")).toBeInTheDocument();
+    expect(screen.getByText("420")).toBeInTheDocument();
+    expect(screen.getByText("Automatically extracted")).toBeInTheDocument();
+    expect(screen.getByText("Needs review")).toBeInTheDocument();
+    expect(screen.getAllByText("Unavailable")).toHaveLength(2);
+  });
 });

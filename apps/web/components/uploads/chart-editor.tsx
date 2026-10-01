@@ -82,6 +82,10 @@ function ChartField({
   const current = reviews.find(
     (item) => item.status === "confirmed" || item.status === "held",
   );
+  const automatic = row.metrics.find(
+    (item) =>
+      item.source_label === label && item.source_locator?.includes("method:"),
+  );
   const suspicious =
     metricKey === "maximum_velocity_kmh" &&
     Number(pending?.raw_label ?? raw) > 45;
@@ -131,6 +135,8 @@ function ChartField({
           <Status value={current.status} />
         ) : pending ? (
           <Status value="proposed" />
+        ) : automatic ? (
+          <Status value={automatic.quality_state} />
         ) : (
           <Status value="missing" />
         )}
@@ -160,7 +166,34 @@ function ChartField({
           </button>
         </div>
       )}
-      {(!current || edit) && (
+      {!current && !pending && automatic && !edit && (
+        <div className="mt-4">
+          <div className="text-2xl font-bold">
+            {automatic.raw_value}{" "}
+            <span className="text-xs font-normal text-slate-500">{unit}</span>
+          </div>
+          <div className="helper mt-1">
+            {automatic.quality_state === "accepted"
+              ? "Automatically extracted"
+              : "Needs review"}{" "}
+            · {automatic.source_locator}
+          </div>
+          {automatic.quality_state !== "accepted" && (
+            <div className="error-box mt-3">
+              This source label is held from analytics until reviewed.
+            </div>
+          )}
+          <button
+            type="button"
+            className="inline-link mt-3"
+            onClick={() => setEdit(true)}
+          >
+            <Pencil size={12} className="inline" /> Review or correct printed
+            value
+          </button>
+        </div>
+      )}
+      {(edit || (!current && (!automatic || Boolean(pending)))) && (
         <>
           {pending ? (
             <div className="mt-4">

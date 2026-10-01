@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ingestion.domain import RawMetricObservation, ValidationFinding
+from app.ingestion.registry import definition_for_source_label
 from app.ingestion.service import Inspection
 from app.models.tables import (
     ActivityReport,
@@ -64,6 +65,7 @@ def persist_inspection(session: Session, upload: ReportUpload, inspection: Inspe
         for observation in period.observations:
             session.add(_observation(observation, period_id=source_period.id))
     states = {row.row_ordinal: row.quality_state for row in validation.rows}
+    validated_by_ordinal = {row.row_ordinal: row for row in validation.rows}
     for row in report.athlete_rows:
         source_row = SourceAthleteRow(
             report_upload_id=upload.id,
@@ -75,7 +77,14 @@ def persist_inspection(session: Session, upload: ReportUpload, inspection: Inspe
         session.add(source_row)
         session.flush()
         for observation in row.observations:
-            session.add(_observation(observation, athlete_row_id=source_row.id))
+            definition = definition_for_source_label(observation.source_label)
+            metric = (
+                validated_by_ordinal[row.row_ordinal].metrics.get(definition.key) if definition is not None else None
+            )
+            source = _observation(observation, athlete_row_id=source_row.id)
+            if metric is not None:
+                source.quality_state = metric.quality_state.value
+            session.add(source)
     for finding in (
         inspection.extraction.findings
         + validation.findings

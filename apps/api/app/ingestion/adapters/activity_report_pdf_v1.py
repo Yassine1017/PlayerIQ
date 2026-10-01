@@ -1,8 +1,4 @@
-"""Deterministic adapter for the reviewed five-page Activity Report PDF.
-
-The athlete breakdown is selectable text. Embedded chart images are *not* read
-as numbers in this version; exact values are marked missing, never estimated.
-"""
+"""Deterministic table parser with bounded chart-label extraction."""
 
 import re
 from datetime import datetime
@@ -11,6 +7,7 @@ from io import BytesIO
 
 import pdfplumber
 
+from app.ingestion.adapters.chart_metrics import extract_chart_metrics
 from app.ingestion.domain import (
     ExtractionResult,
     QualityState,
@@ -47,7 +44,7 @@ AVERAGE_VALUES = re.compile(r"\bAverages\s+(?P<values>\d+(?:\.\d+)?(?:\s+\d+(?:\
 
 class ActivityReportPdfV1Adapter:
     parser_key = "activity_report_pdf_v1"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def detect(self, content: bytes) -> bool:
         if not content.startswith(b"%PDF"):
@@ -94,6 +91,18 @@ class ActivityReportPdfV1Adapter:
             rows = self._extract_rows(fourth, findings)
             if not rows or not any(row.observations for row in rows):
                 return ExtractionResult(report=None, findings=findings, supported=False)
+            try:
+                findings.extend(extract_chart_metrics(pdf.pages[1], rows, self.version))
+            except Exception:
+                # Chart extraction must not discard validated table observations.
+                findings.append(
+                    ValidationFinding(
+                        code="chart_only_unavailable",
+                        message="Chart labels could not be safely extracted; manual review remains available.",
+                        severity=Severity.WARNING,
+                        scope=Scope.REPORT,
+                    )
+                )
             averages = self._extract_averages(fifth, findings)
             report = RawReport(
                 parser_key=self.parser_key,
@@ -112,15 +121,6 @@ class ActivityReportPdfV1Adapter:
             )
             findings.extend(
                 [
-                    ValidationFinding(
-                        code="chart_only_unavailable",
-                        message=(
-                            "Player Load and Maximum Velocity are embedded chart images; "
-                            "exact values are unavailable from selectable text."
-                        ),
-                        severity=Severity.WARNING,
-                        scope=Scope.REPORT,
-                    ),
                     ValidationFinding(
                         code="period_image_unavailable",
                         message="Period values are embedded in an image and were not transcribed.",

@@ -475,3 +475,83 @@ def test_chart_review_is_uploader_only_and_updates_linked_history(
     assert trend.json()["rule_version"] == "analytics_v1"
     assert client.get(trend_url, headers=_auth("other")).status_code == 404
     assert client.get(f"/v1/players/{player_id}/analytics/outliers", headers=_auth("other")).status_code == 404
+
+
+def test_worker_persists_automatic_chart_values_and_manual_correction(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings], synthetic_text_chart_pdf: bytes
+) -> None:
+    client, database, storage, settings = phase2
+    player_id = client.post("/v1/players", headers=_auth(), json={"display_name": "Synthetic Player"}).json()["id"]
+    upload_id = _upload(client, synthetic_text_chart_pdf)["upload_id"]
+    assert process_next_job(database, storage, settings)
+    assert process_next_job(database, storage, settings) is False
+    body = client.get(f"/v1/report-uploads/{upload_id}", headers=_auth()).json()
+    assert body["status"] == "awaiting_link"
+    assert len(body["candidate_rows"]) == 4
+    assert client.get(f"/v1/report-uploads/{upload_id}", headers=_auth("other")).status_code == 404
+    first, zero, suspicious, incomplete = body["candidate_rows"]
+    assert first["quality_state"] == "ready"
+    speed = next(metric for metric in first["metrics"] if metric["source_label"] == "Maximum Velocity")
+    load = next(metric for metric in first["metrics"] if metric["source_label"] == "Player Load")
+    assert (speed["raw_value"], speed["quality_state"]) == ("29.75", "accepted")
+    assert (load["raw_value"], load["quality_state"]) == ("420", "accepted")
+    assert "method:pdf_position" in speed["source_locator"]
+    assert next(metric for metric in zero["metrics"] if metric["source_label"] == "Player Load")["raw_value"] == "0"
+    assert (
+        next(metric for metric in suspicious["metrics"] if metric["source_label"] == "Maximum Velocity")[
+            "quality_state"
+        ]
+        == "needs_review"
+    )
+    assert "Player Load" in incomplete["missing_metrics"]
+
+    link = client.post(
+        f"/v1/report-uploads/{upload_id}/links",
+        headers=_auth(),
+        json={"player_id": player_id, "source_athlete_row_id": first["id"], "session_type": "training"},
+    )
+    assert link.status_code == 200, link.text
+    session_id = link.json()["session_id"]
+    detail_url = f"/v1/players/{player_id}/sessions/{session_id}"
+    detail = client.get(detail_url, headers=_auth()).json()
+    accepted = {metric["metric_key"]: metric for metric in detail["metrics"]}
+    assert accepted["maximum_velocity_kmh"]["value"] == "29.750"
+    assert accepted["player_load_reported"]["value"] == "420.000"
+    overview_url = f"/v1/players/{player_id}/analytics/overview"
+    before = client.get(overview_url, headers=_auth()).json()
+    assert any(fact["kind"] == "personal_record" and fact["value"] == "29.750" for fact in before["facts"])
+    assert all(fact["rule_version"] == "analytics_v1" for fact in before["facts"])
+    assert client.get(overview_url, headers=_auth("other")).status_code == 404
+
+    chart_url = f"/v1/report-uploads/{upload_id}/chart-reviews"
+    proposal = client.post(
+        chart_url,
+        headers=_auth(),
+        json={"source_athlete_row_id": first["id"], "metric_key": "maximum_velocity_kmh", "raw_label": "30.25"},
+    )
+    assert proposal.status_code == 201, proposal.text
+    assert (
+        client.post(
+            chart_url,
+            headers=_auth("other"),
+            json={"source_athlete_row_id": first["id"], "metric_key": "maximum_velocity_kmh", "raw_label": "30.25"},
+        ).status_code
+        == 404
+    )
+    confirm = client.post(
+        f"{chart_url}/{proposal.json()['id']}/confirm",
+        headers=_auth(),
+        json={"source_athlete_row_id": first["id"], "raw_label": "30.25"},
+    )
+    assert confirm.status_code == 200, confirm.text
+    assert confirm.json()["status"] == "confirmed"
+    after = client.get(overview_url, headers=_auth()).json()
+    assert after["history_fingerprint"] != before["history_fingerprint"]
+    assert (
+        next(
+            metric
+            for metric in client.get(detail_url, headers=_auth()).json()["metrics"]
+            if metric["metric_key"] == "maximum_velocity_kmh"
+        )["value"]
+        == "30.250"
+    )

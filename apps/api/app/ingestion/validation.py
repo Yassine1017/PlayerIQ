@@ -110,7 +110,7 @@ class ReportValidator:
                         )
                     )
                 continue
-            if observation.raw_value is None or observation.parsed_value is None:
+            if observation.raw_value is None:
                 result.findings.append(
                     self._finding(
                         row,
@@ -119,6 +119,18 @@ class ReportValidator:
                         observation.source_locator,
                         key,
                         Severity.INFO,
+                    )
+                )
+                continue
+            if observation.parsed_value is None:
+                result.findings.append(
+                    self._finding(
+                        row,
+                        "metric_unreadable",
+                        "Printed source label could not be parsed; review the original report.",
+                        observation.source_locator,
+                        key,
+                        Severity.WARNING,
                     )
                 )
                 continue
@@ -162,10 +174,13 @@ class ReportValidator:
                 )
                 result.quality_state = QualityState.NEEDS_REVIEW
                 continue
-            metric_state = QualityState.ACCEPTED
+            metric_state = (
+                QualityState.NEEDS_REVIEW
+                if observation.quality_state is QualityState.NEEDS_REVIEW
+                else QualityState.ACCEPTED
+            )
             if key == "maximum_velocity_kmh" and value > self.max_velocity_review_kmh:
                 metric_state = QualityState.NEEDS_REVIEW
-                result.quality_state = QualityState.NEEDS_REVIEW
                 result.findings.append(
                     self._finding(
                         row,

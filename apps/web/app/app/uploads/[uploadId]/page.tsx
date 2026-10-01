@@ -16,7 +16,7 @@ import { ChartEditor } from "@/components/uploads/chart-editor";
 import { useApp } from "@/components/layout/app-frame";
 import { ErrorState, Loading, EmptyState } from "@/components/ui/states";
 import { Status } from "@/components/ui/status";
-import type { CandidateRow, SessionType } from "@/lib/api/types";
+import type { CandidateRow, ChartReview, SessionType } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
 import { dateLabel, metricDisplay } from "@/lib/format";
@@ -29,6 +29,40 @@ function sourceValue(row: CandidateRow, label: string) {
         found.raw_value,
         found.raw_unit ?? (label.includes("Distance") ? "m" : null),
       );
+}
+function chartValue(
+  row: CandidateRow,
+  label: string,
+  metricKey: string,
+  reviews: ChartReview[],
+) {
+  const manual = reviews.find(
+    (review) =>
+      review.source_athlete_row_id === row.id &&
+      review.metric_key === metricKey &&
+      (review.status === "confirmed" || review.status === "held"),
+  );
+  const automatic = row.metrics.find(
+    (metric) =>
+      metric.source_label === label &&
+      metric.source_locator?.includes("method:"),
+  );
+  const value = manual?.raw_label ?? automatic?.raw_value;
+  const state = manual
+    ? manual.status === "held"
+      ? "Needs review"
+      : "Manually confirmed"
+    : automatic
+      ? automatic.quality_state === "accepted"
+        ? "Automatically extracted"
+        : "Needs review"
+      : "Unavailable";
+  return (
+    <div>
+      <span>{value ?? "—"}</span>
+      <span className="block text-[10px] text-slate-500">{state}</span>
+    </div>
+  );
 }
 const processing = new Set(["received", "queued", "extracting", "validating"]);
 export default function UploadReviewPage() {
@@ -317,24 +351,20 @@ export default function UploadReviewPage() {
                                 {sourceValue(item, "High Speed Distance (m)")}
                               </td>
                               <td>
-                                {reviews.data?.items.find(
-                                  (review) =>
-                                    review.source_athlete_row_id === item.id &&
-                                    review.metric_key ===
-                                      "maximum_velocity_kmh" &&
-                                    (review.status === "confirmed" ||
-                                      review.status === "held"),
-                                )?.raw_label ?? "—"}
+                                {chartValue(
+                                  item,
+                                  "Maximum Velocity",
+                                  "maximum_velocity_kmh",
+                                  reviews.data?.items ?? [],
+                                )}
                               </td>
                               <td>
-                                {reviews.data?.items.find(
-                                  (review) =>
-                                    review.source_athlete_row_id === item.id &&
-                                    review.metric_key ===
-                                      "player_load_reported" &&
-                                    (review.status === "confirmed" ||
-                                      review.status === "held"),
-                                )?.raw_label ?? "—"}
+                                {chartValue(
+                                  item,
+                                  "Player Load",
+                                  "player_load_reported",
+                                  reviews.data?.items ?? [],
+                                )}
                               </td>
                               <td>
                                 <Status value={item.quality_state} />
@@ -385,11 +415,12 @@ export default function UploadReviewPage() {
                             Selected athlete row #{row.row_ordinal}
                           </span>
                           <h2 className="section-title mt-2">
-                            Confirm page 2 chart values
+                            Page 2 chart values
                           </h2>
                           <p className="section-subtitle">
-                            Compare the exact printed label against this athlete
-                            row in the private source PDF.
+                            Automatically extracted labels are shown below.
+                            Review uncertain values against the private source
+                            PDF.
                           </p>
                         </div>
                         <ShieldCheck size={19} className="text-emerald-600" />

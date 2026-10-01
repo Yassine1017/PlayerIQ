@@ -145,4 +145,46 @@ describe("manual chart review", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByText(/manually confirmed/i)).toBeInTheDocument();
   });
+  it("shows automatic evidence and keeps manual correction available", () => {
+    render(
+      <ChartEditor
+        uploadId="u1"
+        row={{
+          ...row,
+          metrics: [
+            ...row.metrics,
+            {
+              source_label: "Maximum Velocity",
+              raw_value: "29.75",
+              raw_unit: "km/h",
+              parsed_value: "29.75",
+              quality_state: "accepted",
+              source_locator:
+                "p2 chart:maximum_velocity method:ocr confidence:0.99",
+            },
+            {
+              source_label: "Player Load",
+              raw_value: "420",
+              raw_unit: null,
+              parsed_value: "420",
+              quality_state: "needs_review",
+              source_locator: "p2 chart:player_load method:ocr confidence:0.91",
+            },
+          ],
+        }}
+        reviews={[]}
+        onUpdate={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("29.75")).toBeInTheDocument();
+    expect(screen.getByText("420")).toBeInTheDocument();
+    expect(screen.getByText(/Automatically extracted/)).toBeInTheDocument();
+    expect(screen.getByText(/held from analytics/)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", {
+        name: /review or correct printed value/i,
+      }),
+    ).toHaveLength(2);
+    expect(api.confirmChart).not.toHaveBeenCalled();
+  });
 });
