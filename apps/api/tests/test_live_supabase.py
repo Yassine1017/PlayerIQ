@@ -24,12 +24,33 @@ def test_development_supabase_role_migration_and_rls() -> None:
                     "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity "
                     "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
                     "WHERE n.nspname = 'playeriq' AND c.relname IN "
-                    "('report_uploads', 'source_athlete_rows', 'player_sessions', "
+                    "('report_uploads', 'ingestion_jobs', 'source_athlete_rows', 'player_sessions', "
                     "'session_metric_values', 'chart_metric_reviews')"
                 )
             ).all()
-            assert len(tables) == 5
+            assert len(tables) == 6
             assert all(row[1] and row[2] for row in tables)
+            job_access = connection.execute(
+                text(
+                    "SELECT has_table_privilege(current_user, 'playeriq.ingestion_jobs', 'INSERT'), "
+                    "has_table_privilege(current_user, 'playeriq.ingestion_jobs', 'SELECT'), "
+                    "has_table_privilege(current_user, 'playeriq.ingestion_jobs', 'UPDATE'), "
+                    "has_table_privilege(current_user, 'playeriq.ingestion_jobs', 'DELETE'), "
+                    "has_table_privilege('playeriq_worker', 'playeriq.ingestion_jobs', 'SELECT'), "
+                    "has_table_privilege('playeriq_worker', 'playeriq.ingestion_jobs', 'UPDATE'), "
+                    "has_table_privilege('anon', 'playeriq.ingestion_jobs', 'INSERT'), "
+                    "has_table_privilege('authenticated', 'playeriq.ingestion_jobs', 'INSERT')"
+                )
+            ).one()
+            assert tuple(job_access) == (True, False, False, False, True, True, False, False)
+            job_policies = connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_policies WHERE schemaname = 'playeriq' "
+                    "AND tablename = 'ingestion_jobs' AND policyname IN "
+                    "('ingestion_jobs_owner_insert', 'ingestion_jobs_worker_all')"
+                )
+            )
+            assert job_policies == 2
             policy_count = connection.scalar(
                 text(
                     "SELECT count(*) FROM pg_policies WHERE schemaname = 'playeriq' "

@@ -302,7 +302,7 @@ export class ApiClient {
             let body: {
               upload_id?: string;
               status?: string;
-              error?: { code?: string; message?: string };
+              error?: { code?: string; message?: string; request_id?: string };
             } = {};
             try {
               body = JSON.parse(xhr.responseText);
@@ -316,12 +316,22 @@ export class ApiClient {
               body.status
             )
               resolve({ upload_id: body.upload_id, status: body.status });
+            else if (xhr.status >= 500)
+              reject(
+                new ApiError(
+                  "upload_processing_failed",
+                  "We couldn't process this report. Please try again.",
+                  xhr.status,
+                  body.error?.request_id,
+                ),
+              );
             else
               reject(
                 new ApiError(
                   body.error?.code ?? "upload_failed",
                   body.error?.message ?? "Upload failed",
                   xhr.status,
+                  body.error?.request_id,
                 ),
               );
           };

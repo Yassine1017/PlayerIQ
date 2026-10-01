@@ -71,4 +71,49 @@ describe("authenticated API client", () => {
     await expect(api.me()).rejects.toBeInstanceOf(ApiError);
     await expect(api.me()).rejects.toMatchObject({ code: "network_error" });
   });
+  it("reports an upload HTTP failure without exposing backend details", async () => {
+    class FailedUploadRequest {
+      upload = { onprogress: null };
+      status = 503;
+      responseText = JSON.stringify({
+        error: {
+          code: "upload_processing_failed",
+          message: "internal table details",
+          request_id: "synthetic-request",
+        },
+      });
+      onload: (() => void) | null = null;
+      open() {}
+      setRequestHeader() {}
+      send() {
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", FailedUploadRequest);
+    const api = new ApiClient(async () => "synthetic-token", vi.fn());
+    await expect(
+      api.uploadPdf(new File(["%PDF"], "synthetic.pdf"), vi.fn()),
+    ).rejects.toMatchObject({
+      code: "upload_processing_failed",
+      status: 503,
+      requestId: "synthetic-request",
+      message: "We couldn't process this report. Please try again.",
+    });
+  });
+  it("keeps an unreachable upload API distinct from an HTTP failure", async () => {
+    class UnreachableUploadRequest {
+      upload = { onprogress: null };
+      onerror: (() => void) | null = null;
+      open() {}
+      setRequestHeader() {}
+      send() {
+        this.onerror?.();
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", UnreachableUploadRequest);
+    const api = new ApiClient(async () => "synthetic-token", vi.fn());
+    await expect(
+      api.uploadPdf(new File(["%PDF"], "synthetic.pdf"), vi.fn()),
+    ).rejects.toMatchObject({ code: "network_error", status: 0 });
+  });
 });

@@ -65,7 +65,7 @@ If email confirmation is enabled in Supabase Dev, confirm the signup email befor
 
 ## Ingestion worker
 
-The API queues a durable job after a private upload. Run the deterministic worker command from another terminal or schedule it on the backend host:
+The API queues a durable job after a private upload. Its restricted role can insert only an owner-authorized job and does not read job rows; enqueueing uses a no-return insert to avoid requesting columns it cannot select. The separate worker claims and updates jobs. A server-side enqueue failure returns a safe upload error and attempts to remove the newly stored private object. Run the deterministic worker command from another terminal or schedule it on the backend host:
 
 ```powershell
 $env:PYTHONPATH = "apps/api"

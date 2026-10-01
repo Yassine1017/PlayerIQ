@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from sqlite3 import OperationalError
 from uuid import UUID, uuid4
 
 import pytest
@@ -88,6 +89,50 @@ def _upload(client: TestClient, content: bytes, who: str = "owner") -> dict:
     )
     assert response.status_code == 202, response.text
     return response.json()
+
+
+def test_job_enqueue_does_not_request_job_columns(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings], synthetic_pdf: bytes
+) -> None:
+    client, database, _, _ = phase2
+    job_inserts: list[str] = []
+
+    def observe_job_insert(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:  # type: ignore[no-untyped-def]
+        if "INSERT INTO playeriq.ingestion_jobs" in statement:
+            job_inserts.append(statement)
+
+    event.listen(database.engine, "before_cursor_execute", observe_job_insert)
+    try:
+        _upload(client, synthetic_pdf)
+    finally:
+        event.remove(database.engine, "before_cursor_execute", observe_job_insert)
+    assert len(job_inserts) == 1
+    assert "RETURNING" not in job_inserts[0].upper()
+
+
+def test_failed_job_enqueue_rolls_back_upload_and_hides_database_error(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings], synthetic_pdf: bytes
+) -> None:
+    client, database, storage, _ = phase2
+
+    def reject_job_insert(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:  # type: ignore[no-untyped-def]
+        if "INSERT INTO playeriq.ingestion_jobs" in statement:
+            raise OperationalError("synthetic job enqueue failure")
+
+    event.listen(database.engine, "before_cursor_execute", reject_job_insert)
+    try:
+        response = client.post(
+            "/v1/report-uploads",
+            headers=_auth(),
+            files={"file": ("synthetic.pdf", synthetic_pdf, "application/pdf")},
+        )
+    finally:
+        event.remove(database.engine, "before_cursor_execute", reject_job_insert)
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "upload_processing_failed"
+    assert "synthetic job enqueue failure" not in response.text
+    assert storage.objects == {}
+    assert client.get("/v1/report-uploads", headers=_auth()).json()["items"] == []
 
 
 def test_uploader_only_upload_history_is_cursor_paginated(

@@ -8,6 +8,8 @@ Supabase Auth issues an access token. The browser sends it as a Bearer token to 
 
 For each request, the API opens a transaction using a restricted PostgreSQL login, checks that it belongs to `playeriq_api` and is neither superuser nor `BYPASSRLS`, and sets `playeriq.current_user_id` locally to the verified actor. Ownership services enforce resource access, and RLS policies provide a second boundary. The custom setting is transaction-local, so a pooled connection cannot carry one request's actor into another. The worker has its own restricted `playeriq_worker` login and never accepts a user-supplied actor.
 
+For ingestion jobs, the API has only `INSERT` and an owner-scoped RLS insert policy. Its enqueue statement requests no returned job columns; an ORM insert with `RETURNING` would require `SELECT` and fail. The API cannot read, update, or delete job rows. The worker has `SELECT` and `UPDATE` for claiming and processing, with no API-role membership required. This is an application insert correction; the existing grants and policies remain in force.
+
 ## Resource access
 
 | Resource | Current rule |
@@ -39,7 +41,7 @@ If the platform's role policy disallows role creation from your chosen migration
 
 5. In `.env`, set `DATABASE_URL`, `WORKER_DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_STORAGE_SECRET_KEY`, and optionally `SUPABASE_JWT_AUDIENCE`, `SUPABASE_STORAGE_BUCKET`, `JWKS_CACHE_SECONDS`, `MAX_UPLOAD_BYTES`, `CORS_ORIGINS`, and validation review thresholds. `.env.example` is placeholders only. The Phase 4 frontend uses the same project's URL and enabled **public publishable key** in its ignored `apps/web/.env.local`; this backend does not need that key. Never expose either database password or the Storage secret to the frontend.
 
-For a fresh development database, run `python -m alembic upgrade head` with the privileged migration URL temporarily in `DATABASE_URL`, then restore the restricted API URL. `python -m alembic current` should show `0005_chart_metric_reviews`. Migration `0005` adds the uploader-only review table and policies; API updates/deletes of session metric values are restricted to the uploader's linked session and the two chart metric keys. The schema and RLS policies were applied to a separate development Supabase project through its migration API. Restricted runtime logins were verified previously; an authenticated development user is still needed for live HTTP verification.
+For a fresh development database, run `python -m alembic upgrade head` with the privileged migration URL temporarily in `DATABASE_URL`, then restore the restricted API URL. `python -m alembic current` should show `0008_ai_budget_precision`. Migration `0005` adds the uploader-only review table and policies; API updates/deletes of session metric values are restricted to the uploader's linked session and the two chart metric keys. The schema and RLS policies were applied to a separate development Supabase project through its migration API. Restricted runtime logins were verified previously; the final real-PDF browser retry remains manual.
 
 ## Verification
 

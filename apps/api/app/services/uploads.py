@@ -1,8 +1,10 @@
 """Authenticated, bounded PDF upload and durable job creation."""
 
+import logging
 from uuid import UUID, uuid4
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import insert
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.api.errors import AppError
 from app.core.config import Settings
@@ -11,6 +13,8 @@ from app.ingestion.adapters.activity_report_pdf_v1 import ActivityReportPdfV1Ada
 from app.models.tables import IngestionJob, ReportUpload
 from app.repositories.uploads import content_sha256, find_active_duplicate
 from app.services.storage import ReportStorage
+
+logger = logging.getLogger(__name__)
 
 
 def validate_pdf_upload(
@@ -68,7 +72,11 @@ def create_upload(
             )
             session.add(upload)
             session.flush()
-            session.add(IngestionJob(upload_id=upload.id, status="queued", attempts=0))
+            # The API role can INSERT an owned job, but cannot SELECT jobs. An ORM
+            # flush adds RETURNING for server defaults, which would require SELECT.
+            session.execute(
+                insert(IngestionJob).inline().values(id=uuid4(), upload_id=upload.id, status="queued", attempts=0)
+            )
         return upload
     except Exception as exc:
         try:
@@ -78,4 +86,13 @@ def create_upload(
             pass
         if isinstance(exc, IntegrityError):
             raise AppError("duplicate_upload", "This report was already uploaded", 409) from exc
+        if isinstance(exc, DBAPIError):
+            logger.error(
+                "upload_enqueue_failed error_type=%s sqlstate=%s",
+                type(exc.orig).__name__,
+                getattr(exc.orig, "sqlstate", None),
+            )
+            raise AppError(
+                "upload_processing_failed", "We couldn't process this report. Please try again.", 503
+            ) from exc
         raise
