@@ -6,6 +6,8 @@ Architecture and source data decisions: [SPEC.md](docs/SPEC.md), [GPS_DATA_MODEL
 
 Phase 5.6 places **Connect your player identity** directly below the dashboard welcome banner. Its action opens the only suitable processed report, offers a report picker at `/app/connect` when several are available, or offers upload/actual processing status when none is ready. Compact athlete cards lead to evidence review and **Confirm — This is me** through the existing backend. Only a backend-confirmed owned identity clears onboarding; connected accounts without accepted history have a distinct message. Future recognized rows still require session confirmation. No database migration or backend API change is needed for Phase 5.6.
 
+Team creation requires migration `0010_team_creation_rls`, which corrects a recursive PostgreSQL INSERT policy using a private SECURITY INVOKER creator check. Existing RLS, restricted roles and uploader-only PDF access remain in force. See [AUTH.md](docs/AUTH.md) for the correction and rollback-only live regression.
+
 ## Development setup
 
 Use Python 3.12 and a **development** Supabase project. Keep the project URL, database passwords, and server-only Storage key in an ignored `.env`; `.env.example` contains placeholders. Use separate restricted PostgreSQL login roles for the API and worker as described in [AUTH.md](docs/AUTH.md). Do not use `postgres`, `service_role`, a superuser, or a role with `BYPASSRLS` as a runtime login. Apply migrations with a separate privileged migration connection. Configure a private Storage bucket named `playeriq-reports` (or set `SUPABASE_STORAGE_BUCKET`), with public access disabled. Never expose the Storage secret key to a browser.

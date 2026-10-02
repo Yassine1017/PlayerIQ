@@ -10,6 +10,12 @@ For each request, the API opens a transaction using a restricted PostgreSQL logi
 
 For ingestion jobs, the API has only `INSERT` and an owner-scoped RLS insert policy. Its enqueue statement requests no returned job columns; an ORM insert with `RETURNING` would require `SELECT` and fail. The API cannot read, update, or delete job rows. The worker has `SELECT` and `UPDATE` for claiming and processing, with no API-role membership required. This is an application insert correction; the existing grants and policies remain in force.
 
+## Team creation policy correction
+
+Migration `0010_team_creation_rls` fixes PostgreSQL `42P17` during team creation. The original membership/grant INSERT policy queried `teams`; its SELECT policy queried membership again, causing an RLS rewrite loop. The two INSERT policies now call private `playeriq.is_team_creator(uuid)`. This is a non-inlineable PL/pgSQL **SECURITY INVOKER** function: its separate read checks the transaction-local verified actor against the team's immutable creator, using the caller's existing table grants and RLS. It does not elevate privileges or bypass RLS. The function has fixed `search_path=pg_catalog`, uses fully qualified tables, returns only a boolean, and receives no caller-supplied actor ID. Only `playeriq_api` has EXECUTE; PUBLIC, browser roles and the worker do not. Existing creator-only insertion, team SELECT policies, forced RLS and private report access are retained.
+
+The opt-in live regression in `test_live_supabase.py` creates a synthetic team within a transaction, verifies admin membership, manager grant, listing and dashboard access, then checks that an unrelated actor cannot see the team or insert membership/manager grants. The entire transaction rolls back, including on failure. It uses only development uploader identity metadata, never private PDF bytes, athlete values or browser credentials. This database-only correction takes effect for the running API after migration; no API restart is required.
+
 ## Resource access
 
 | Resource | Current rule |
