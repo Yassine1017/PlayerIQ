@@ -21,6 +21,7 @@ from app.models.tables import (
 from app.schemas.v1 import LinkOut, LinkRequest
 from app.services.authorization import require_player, require_team, require_team_player, require_upload
 from app.services.chart_reviews import sync_confirmed_chart_metrics
+from app.services.transaction_locks import lock_resource
 
 
 def link_athlete_row(
@@ -47,14 +48,13 @@ def link_athlete_row(
     if upload.status != "awaiting_link":
         raise AppError("upload_not_ready", "Report is not ready for linking", 409)
     # Serializes same-player/date checks on PostgreSQL.
-    session.execute(select(Player.id).where(Player.id == request.player_id).with_for_update())
+    lock_resource(session, "player-session", str(request.player_id))
+    lock_resource(session, "source-row", str(request.source_athlete_row_id))
     source_row = session.scalar(
-        select(SourceAthleteRow)
-        .where(
+        select(SourceAthleteRow).where(
             SourceAthleteRow.id == request.source_athlete_row_id,
             SourceAthleteRow.report_upload_id == upload_id,
         )
-        .with_for_update()
     )
     if source_row is None:
         raise AppError("row_not_found", "Athlete row not found in this report", 404)

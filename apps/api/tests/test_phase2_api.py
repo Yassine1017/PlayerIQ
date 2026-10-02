@@ -16,7 +16,8 @@ from app.models.tables import IngestionJob, PlayerSession, SessionMetricValue, S
 from app.services.jobs import process_next_job
 from conftest import make_synthetic_pdf
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import Select, create_engine, event, select
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.pool import StaticPool
 
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
@@ -65,6 +66,22 @@ def phase2() -> Iterator[tuple[TestClient, Database, FakeStorage, Settings]]:
         cursor.close()
 
     Base.metadata.create_all(engine)
+
+    @event.listens_for(engine, "before_execute")
+    def reject_read_only_table_row_locks(_conn, statement, _multiparams, _params, _options) -> None:  # type: ignore[no-untyped-def]
+        # SQLite omits PostgreSQL locking clauses. Enforce the production role's
+        # read-only evidence/player contract throughout synthetic API flows.
+        sql = str(statement.compile(dialect=postgresql.dialect()))
+        if (
+            isinstance(statement, Select)
+            and "FOR UPDATE" in sql
+            and any(
+                getattr(table, "name", None) in ("players", "source_athlete_rows")
+                for table in statement.get_final_froms()
+            )
+        ):
+            raise OperationalError("synthetic restricted-role lock permission denied")
+
     with engine.begin() as connection:
         connection.execute(auth_users.insert(), [{"id": OWNER}, {"id": OTHER}])
     settings = Settings(_env_file=None, supabase_url="https://demo.supabase.co")

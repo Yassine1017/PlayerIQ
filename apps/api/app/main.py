@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.ai.provider import OpenAIProvider
 from app.api.ai import router as ai_router
 from app.api.analytics import router as analytics_router
-from app.api.errors import register_exception_handlers
+from app.api.errors import error_response, register_exception_handlers
 from app.api.health import router as health_router
 from app.api.teams import router as teams_router
 from app.api.v1 import router as v1_router
@@ -51,13 +51,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.openai_api_key
         else None
     )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH"],
-        allow_headers=["Authorization", "Content-Type"],
-    )
 
     @app.middleware("http")
     async def request_ids(request: Request, call_next):  # type: ignore[no-untyped-def]
@@ -65,7 +58,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.request_id = request_id
         token = request_id_context.set(request_id)
         try:
-            response = await call_next(request)
+            try:
+                response = await call_next(request)
+            except Exception as exc:
+                # Handle inside CORS, so browsers can read a sanitized 500
+                # instead of reporting a misleading failed network request.
+                logger.error("unhandled_error type=%s", type(exc).__name__)
+                response = error_response(request, 500, "internal_error", "An internal error occurred")
             response.headers["X-Request-ID"] = request_id
             route = request.scope.get("route")
             logger.info(
@@ -77,6 +76,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return response
         finally:
             request_id_context.reset(token)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
 
     register_exception_handlers(app)
     app.include_router(health_router)

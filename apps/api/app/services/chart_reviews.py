@@ -26,6 +26,7 @@ from app.schemas.v1 import (
     ChartReviewsOut,
 )
 from app.services.authorization import require_upload
+from app.services.transaction_locks import lock_resource
 
 CHART_REVIEW_VERSION = "chart_review_v1"
 CHART_LABEL = re.compile(r"(?:0|[1-9][0-9]{0,8})(?:\.[0-9]{1,3})?\Z")
@@ -70,13 +71,12 @@ def propose_chart_value(session: Session, actor_id: UUID, upload_id: UUID, body:
     upload = require_upload(session, actor_id, upload_id)
     if upload.status != "awaiting_link":
         raise AppError("upload_not_ready", "Report is not ready for chart review", 409)
+    lock_resource(session, "source-row", str(body.source_athlete_row_id))
     row = session.scalar(
-        select(SourceAthleteRow)
-        .where(
+        select(SourceAthleteRow).where(
             SourceAthleteRow.id == body.source_athlete_row_id,
             SourceAthleteRow.report_upload_id == upload_id,
         )
-        .with_for_update()
     )
     if row is None:
         raise AppError("row_not_found", "Athlete row not found in this report", 404)
@@ -129,13 +129,16 @@ def confirm_chart_value(
     settings: Settings,
 ) -> ChartReviewOut:
     require_upload(session, actor_id, upload_id)
-    review = session.scalar(select(ChartMetricReview).where(ChartMetricReview.id == review_id).with_for_update())
+    review = session.scalar(select(ChartMetricReview).where(ChartMetricReview.id == review_id))
     if review is None:
         raise AppError("chart_review_not_found", "Chart review not found", 404)
+    lock_resource(session, "source-row", str(review.athlete_row_id))
+    # Reload after waiting so a concurrent confirmation cannot use stale state.
+    session.refresh(review)
     row = session.scalar(
-        select(SourceAthleteRow)
-        .where(SourceAthleteRow.id == review.athlete_row_id, SourceAthleteRow.report_upload_id == upload_id)
-        .with_for_update()
+        select(SourceAthleteRow).where(
+            SourceAthleteRow.id == review.athlete_row_id, SourceAthleteRow.report_upload_id == upload_id
+        )
     )
     if row is None:
         raise AppError("chart_review_not_found", "Chart review not found", 404)

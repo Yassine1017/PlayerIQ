@@ -24,6 +24,7 @@ from app.models.tables import (
 )
 from app.schemas.v1 import LinkRequest
 from app.services.authorization import require_player, require_team, require_team_player, require_upload
+from app.services.transaction_locks import lock_resource
 
 
 def normalize_source_label(value: str) -> str:
@@ -140,10 +141,12 @@ def _confirm_identity(
     settings: Settings,
 ) -> tuple[PlayerSourceIdentity, UUID]:
     upload = require_upload(session, actor_id, upload_id)
+    # Same order as linking: player, source row, then mapping. No UPDATE grants
+    # are needed on the read-only player/source tables, including team members.
+    lock_resource(session, "player-session", str(player_id))
+    lock_resource(session, "source-row", str(row_id))
     row = session.scalar(
-        select(SourceAthleteRow)
-        .where(SourceAthleteRow.id == row_id, SourceAthleteRow.report_upload_id == upload_id)
-        .with_for_update()
+        select(SourceAthleteRow).where(SourceAthleteRow.id == row_id, SourceAthleteRow.report_upload_id == upload_id)
     )
     if row is None:
         raise AppError("row_not_found", "Athlete row not found", 404)
@@ -163,15 +166,14 @@ def _confirm_identity(
     ).all()
     if sum(normalize_source_label(label) == normalized for label in report_labels) != 1:
         raise AppError("identity_ambiguous", "Source athlete label is not unique in this report", 409)
+    lock_resource(session, "source-identity", f"{scope}:{upload.parser_key}:{normalized}")
     existing = session.scalar(
-        select(PlayerSourceIdentity)
-        .where(
+        select(PlayerSourceIdentity).where(
             PlayerSourceIdentity.scope_key == scope,
             PlayerSourceIdentity.parser_key == upload.parser_key,
             PlayerSourceIdentity.normalized_label == normalized,
             PlayerSourceIdentity.revoked_at.is_(None),
         )
-        .with_for_update()
     )
     if existing is not None and existing.player_id != player_id:
         raise AppError("identity_conflict", "Source label is already connected in this scope", 409)
@@ -225,6 +227,8 @@ def revoke_identity(session: Session, actor_id: UUID, identity_id: UUID) -> Play
     if identity is None:
         raise AppError("identity_not_found", "GPS identity not found", 404)
     require_player(session, actor_id, identity.player_id, manage=True)
+    lock_resource(session, "source-identity", f"{identity.scope_key}:{identity.parser_key}:{identity.normalized_label}")
+    session.refresh(identity)
     if identity.revoked_at is None:
         identity.revoked_at = datetime.now(UTC)
         session.flush()

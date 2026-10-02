@@ -32,6 +32,10 @@ For an assigned team report, its uploader must also be a team coach or admin to 
 
 ## Future recognition
 
+Confirmation/linking serializes same-player history, source-row use, and scoped identity creation using transaction-scoped PostgreSQL advisory locks. Chart proposal/confirmation uses the same source-row lock; mapping revocation uses the same identity lock. These coordinate accepted-session creation and chart updates while retaining read-only API permissions on `players` and `source_athlete_rows`. A `SELECT ... FOR UPDATE` on those tables would require an UPDATE grant and fail under the restricted production role. No extra grants or migration are needed. Locks release on commit/rollback and remain valid with transaction pooling. Synthetic API regression tests enforce the read-only lock contract in addition to the existing identity/privacy tests.
+
+Unhandled API failures return a sanitized `internal_error` response with a request ID through the configured CORS layer. Allowed browser origins can therefore read a server failure instead of incorrectly displaying a connection error. This does not authorize additional origins or expose database error details. After changing backend code, restart FastAPI if it was started without `--reload`.
+
 The label normalizer applies Unicode NFKC, removes soft hyphens, repairs a hyphen only at a PDF line break, collapses whitespace, and case-folds. No fuzzy name similarity or account-display-name comparison is used. A mapping key contains the parser identity, that normalized label, and a narrow source scope:
 
 - An explicitly team-assigned report uses its PlayerIQ team UUID.
