@@ -405,6 +405,7 @@ p {
   gap: 16px;
 }
 .table-wrap {
+  position: relative;
   overflow-x: auto;
 }
 .data-table {
@@ -1225,5 +1226,166 @@ p {
   .analyst-limitations {
     margin-left: 15px;
     margin-right: 15px;
+  }
+}
+
+.identity-onboarding {
+  padding: 28px;
+  border: 1px solid #a9d9c4;
+  border-left: 5px solid #159466;
+  border-radius: 14px;
+  background: linear-gradient(115deg, #f0fbf5, #fff 80%);
+}
+.identity-onboarding-head {
+  display: flex;
+  align-items: start;
+  gap: 16px;
+}
+.identity-symbol {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #daf3e6;
+  color: #14764f;
+}
+.identity-onboarding h2 {
+  margin: 7px 0 10px;
+  font-size: 24px;
+  font-weight: 750;
+  color: #173b3f;
+  line-height: 1.25;
+}
+.identity-onboarding p {
+  max-width: 720px;
+  color: #4c6669;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.identity-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+  padding: 18px 0;
+  border-top: 1px solid #d6e8df;
+  border-bottom: 1px solid #d6e8df;
+}
+.identity-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  color: #536b72;
+}
+.identity-step-number {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e9eff0;
+  font-weight: 700;
+  color: #526871;
+}
+.identity-steps .complete {
+  color: #13734e;
+}
+.identity-steps .complete .identity-step-number {
+  background: #d7f0e1;
+  color: #13734e;
+}
+.identity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.identity-progress-note {
+  margin-bottom: 16px;
+}
+.identity-selection,
+.identity-confirmation h3 {
+  scroll-margin-top: 100px;
+}
+.identity-athletes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.identity-athlete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #dbe7e3;
+  border-radius: 10px;
+}
+.identity-athlete > div {
+  flex: 1 1 160px;
+}
+.identity-confirmation {
+  padding: 22px;
+  border: 1px solid #b7dcca;
+  border-radius: 12px;
+  background: #f7fcf9;
+}
+.identity-evidence {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+.identity-evidence dt {
+  font-size: 11px;
+  color: #6a7d82;
+  margin-bottom: 4px;
+}
+.identity-evidence dd {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 650;
+  color: #163b43;
+}
+@media (max-width: 700px) {
+  .identity-steps,
+  .identity-athletes {
+    grid-template-columns: 1fr;
+  }
+  .identity-steps {
+    gap: 12px;
+    margin: 18px 0;
+  }
+}
+@media (max-width: 430px) {
+  .identity-onboarding {
+    padding: 20px 16px;
+  }
+  .identity-onboarding-head {
+    gap: 10px;
+  }
+  .identity-symbol {
+    width: 36px;
+    height: 36px;
+  }
+  .identity-onboarding h2 {
+    font-size: 21px;
+  }
+  .identity-actions .btn,
+  .identity-athlete .btn {
+    width: 100%;
+    justify-content: center;
+    white-space: normal;
+  }
+  .identity-confirmation {
+    padding: 16px;
+  }
+  .identity-evidence {
+    grid-template-columns: 1fr;
   }
 }

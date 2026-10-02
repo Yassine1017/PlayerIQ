@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { TrendChart } from "@/components/analytics/trend-chart";
 import { MetricCards } from "@/components/dashboard/metric-card";
+import { IdentityOnboarding } from "@/components/identity/identity-onboarding";
 import { useApp } from "@/components/layout/app-frame";
 import { SessionTable } from "@/components/sessions/session-table";
 import { ErrorState, Loading } from "@/components/ui/states";
@@ -57,6 +58,10 @@ export default function Dashboard() {
     `trend:${player.id}:${metric}:${range.from}`,
     loadTrend,
   );
+  const connected =
+    identities.data?.items.some(
+      (item) => item.player_id === player.id && item.status === "connected",
+    ) ?? false;
   return (
     <div className="stack">
       <div className="hero">
@@ -70,7 +75,9 @@ export default function Dashboard() {
           <p className="mt-2 text-sm">
             {sessions.data?.items[0]
               ? `Latest accepted session: ${dateLabel(sessions.data.items[0].local_date)}`
-              : "No accepted session yet"}
+              : sessions.loading
+                ? "Loading latest session…"
+                : "No accepted session yet"}
             {team ? ` · ${team.name}` : ""}
           </p>
           <Link href="/app/upload" className="btn btn-primary mt-3">
@@ -78,29 +85,25 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
-      {!identities.loading &&
-        !identities.error &&
-        !identities.data?.items.some((item) => item.status === "connected") && (
-          <div className="info-box">
-            <strong>Connect your GPS identity</strong>
-            <p className="mt-1 text-sm">
-              Your account name will never be matched to a report automatically.
-              Open a processed report, choose your own athlete row, and confirm
-              “This is me.”
-            </p>
-            <Link href="/app/upload" className="inline-link mt-2 inline-block">
-              Open My Reports →
-            </Link>
-          </div>
-        )}
-      {!sessions.loading &&
+      {identities.error ? (
+        <ErrorState
+          message={identities.error.message}
+          onRetry={identities.refresh}
+        />
+      ) : identities.loading ? (
+        <Loading label="Checking your GPS identity…" />
+      ) : identities.data && !connected ? (
+        <IdentityOnboarding />
+      ) : null}
+      {connected &&
+        !sessions.loading &&
         !sessions.error &&
         sessions.data?.items.length === 0 && (
           <div className="info-box">
-            <strong>No accepted sessions yet</strong>
+            <strong>Your GPS identity is connected</strong>
             <p className="mt-1 text-sm">
-              Review an uploaded report and link your eligible athlete row.
-              Missing history is shown as unavailable, not zero.
+              No accepted GPS history is available yet. Review a report and
+              confirm an eligible session to start your performance history.
             </p>
             <Link href="/app/upload" className="inline-link mt-2 inline-block">
               Review reports →

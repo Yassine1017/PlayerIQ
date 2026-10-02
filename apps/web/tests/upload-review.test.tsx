@@ -16,23 +16,30 @@ const mocks = vi.hoisted(() => ({
   teamPlayers: [] as { id: string; display_name: string }[],
   linkRow: vi.fn(),
   refresh: vi.fn(),
+  refreshIdentity: vi.fn().mockResolvedValue(undefined),
+  push: vi.fn(),
   api: {
     upload: vi.fn(),
     chartReviews: vi.fn(),
     linkRow: vi.fn(),
     claimSelf: vi.fn(),
     confirmTeamPlayer: vi.fn(),
+    sourceIdentities: vi.fn(),
     teamPlayers: vi.fn(),
     reportFile: vi.fn(),
     proposeChart: vi.fn(),
     confirmChart: vi.fn(),
   },
 }));
-vi.mock("next/navigation", () => ({ useParams: () => ({ uploadId: "u1" }) }));
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ uploadId: "u1" }),
+  useRouter: () => ({ push: mocks.push }),
+}));
 vi.mock("@/components/layout/app-frame", () => ({
   useApp: () => ({
     ownedPlayer: { id: "p1", display_name: "Synthetic Player" },
     teams: mocks.teams,
+    refreshIdentity: mocks.refreshIdentity,
   }),
 }));
 vi.mock("@/lib/auth/provider", () => ({ useAuth: () => ({ api: mocks.api }) }));
@@ -80,12 +87,129 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ session_id: "s2", identity: { id: "i2" } });
   mocks.refresh.mockClear();
+  mocks.refreshIdentity.mockClear();
+  mocks.push.mockClear();
+  mocks.api.sourceIdentities.mockReset().mockResolvedValue({
+    items: [{ id: "i1", player_id: "p1", status: "connected" }],
+  });
 });
 afterEach(cleanup);
 describe("uploader review flow", () => {
+  it("guides self-selection through backend-confirmed identity refresh and dashboard navigation", async () => {
+    render(<UploadReviewPage />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /select myself — synthetic athlete c/i,
+      }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Is this your player identity?" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Confirm — This is me" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm — This is me" }),
+    );
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/app"));
+    expect(mocks.api.claimSelf).toHaveBeenCalledWith("u1", {
+      source_athlete_row_id: "r1",
+      player_id: "p1",
+      confirmed_source_label: "Synthetic Athlete C",
+      session_type: "training",
+    });
+    expect(mocks.api.sourceIdentities).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshIdentity).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Player identity connected",
+    );
+  });
+  it("lets the player choose another athlete without creating a mapping", () => {
+    render(<UploadReviewPage />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /select myself — synthetic athlete c/i,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choose another player" }),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /select myself — synthetic athlete c/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Is this your player identity?" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.api.claimSelf).not.toHaveBeenCalled();
+  });
+  it("keeps conflicts visible and does not navigate", async () => {
+    mocks.api.claimSelf.mockRejectedValue(
+      new Error("Source label conflicts with a confirmed mapping"),
+    );
+    render(<UploadReviewPage />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /select myself — synthetic athlete c/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm — This is me" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Source label conflicts",
+    );
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Choose another player" }),
+    ).toBeEnabled();
+  });
+  it("does not navigate if backend identity verification is unavailable after linking", async () => {
+    mocks.api.sourceIdentities.mockResolvedValue({ items: [] });
+    render(<UploadReviewPage />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /select myself — synthetic athlete c/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm — This is me" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "identity connection could not be confirmed",
+    );
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+  it("does not treat an unrelated connected mapping as confirmation of the selected identity", async () => {
+    mocks.api.sourceIdentities.mockResolvedValue({
+      items: [
+        { id: "different-identity", player_id: "p1", status: "connected" },
+      ],
+    });
+    render(<UploadReviewPage />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /select myself — synthetic athlete c/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm — This is me" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "identity connection could not be confirmed",
+    );
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
   it("requires deliberate athlete selection and explicit linking", async () => {
     render(<UploadReviewPage />);
-    expect(screen.getByText("Synthetic Athlete C")).toBeInTheDocument();
+    expect(screen.getAllByText("Synthetic Athlete C").length).toBeGreaterThan(
+      0,
+    );
     expect(mocks.api.linkRow).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Select row" }));
     expect(screen.getByText(/selected athlete row #3/i)).toBeInTheDocument();
@@ -124,8 +248,16 @@ describe("uploader review flow", () => {
       ],
     };
     render(<UploadReviewPage />);
-    expect(screen.getByText("Zero activity recorded")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Zero activity recorded").length,
+    ).toBeGreaterThan(0);
     expect(screen.getAllByText("Needs review").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: /select myself — synthetic zero/i }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/accepted session cannot be created from this row/i),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Select row" }),
     ).not.toBeInTheDocument();

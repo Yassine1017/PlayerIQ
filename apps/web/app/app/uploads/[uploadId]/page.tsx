@@ -10,9 +10,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ChartEditor } from "@/components/uploads/chart-editor";
+import { PlayerIdentitySelection } from "@/components/identity/player-identity-selection";
 import { useApp } from "@/components/layout/app-frame";
 import { ErrorState, Loading, EmptyState } from "@/components/ui/states";
 import { Status } from "@/components/ui/status";
@@ -67,9 +68,12 @@ function chartValue(
 const processing = new Set(["received", "queued", "extracting", "validating"]);
 export default function UploadReviewPage() {
   const { uploadId } = useParams<{ uploadId: string }>();
+  const router = useRouter();
   const { api } = useAuth();
-  const { ownedPlayer, teams } = useApp();
+  const { ownedPlayer, teams, refreshIdentity } = useApp();
   const [selected, setSelected] = useState<string | null>(null);
+  const [personalSelection, setPersonalSelection] = useState(false);
+  const [identitySuccess, setIdentitySuccess] = useState<string | null>(null);
   const [sessionType, setSessionType] = useState<SessionType>("training");
   const [linkBusy, setLinkBusy] = useState(false);
   const [confirmIdentity, setConfirmIdentity] = useState(false);
@@ -173,6 +177,26 @@ export default function UploadReviewPage() {
           : await api.confirmTeamPlayer(uploadId, claimBody);
       setLinkedSession(result.session_id);
       status.refresh();
+      if (personalSelection && chosen === ownedPlayer?.id) {
+        const expectedIdentityId =
+          recognized ?? ("identity" in result ? result.identity.id : null);
+        const verified = await api.sourceIdentities();
+        if (
+          !verified.items.some(
+            (identity) =>
+              identity.id === expectedIdentityId &&
+              identity.player_id === chosen &&
+              identity.status === "connected",
+          )
+        ) {
+          throw new Error(
+            "The session was linked, but your identity connection could not be confirmed. Refresh and try again.",
+          );
+        }
+        setIdentitySuccess("Player identity connected. Opening My Dashboard…");
+        await refreshIdentity();
+        router.push("/app");
+      }
       setConfirmIdentity(false);
     } catch (reason) {
       setLinkError(
@@ -404,6 +428,45 @@ export default function UploadReviewPage() {
             )}
             {status.data.status === "awaiting_link" && (
               <>
+                {ownedPlayer && (
+                  <PlayerIdentitySelection
+                    report={status.data}
+                    playerId={ownedPlayer.id}
+                    allowed={
+                      !reportTeamId ||
+                      Boolean(
+                        manager &&
+                        teamPlayers.data?.items.some(
+                          (player) => player.id === ownedPlayer.id,
+                        ),
+                      )
+                    }
+                    selected={personalSelection ? (row ?? null) : null}
+                    sessionType={sessionType}
+                    confirmed={confirmIdentity}
+                    busy={linkBusy}
+                    error={linkError}
+                    success={identitySuccess}
+                    onSelect={(athlete) => {
+                      setPersonalSelection(true);
+                      setSelected(athlete.id);
+                      setTargetPlayerId(ownedPlayer.id);
+                      setConfirmIdentity(false);
+                      setLinkedSession(null);
+                      setLinkError(null);
+                      setIdentitySuccess(null);
+                    }}
+                    onChooseAnother={() => {
+                      setSelected(null);
+                      setConfirmIdentity(false);
+                      setLinkError(null);
+                      setIdentitySuccess(null);
+                    }}
+                    onSessionType={setSessionType}
+                    onConfirmEvidence={setConfirmIdentity}
+                    onConfirm={() => void link()}
+                  />
+                )}
                 <section className="card card-pad">
                   <div className="card-head">
                     <div>
@@ -492,9 +555,11 @@ export default function UploadReviewPage() {
                                     className="inline-link"
                                     onClick={() => {
                                       setSelected(item.id);
+                                      setPersonalSelection(false);
                                       setLinkedSession(null);
                                       setConfirmIdentity(false);
                                       setTargetPlayerId(null);
+                                      setLinkError(null);
                                     }}
                                   >
                                     {selected === item.id
@@ -524,7 +589,7 @@ export default function UploadReviewPage() {
                     </p>
                   )}
                 </section>
-                {row && (
+                {row && !personalSelection && (
                   <>
                     <section className="card card-pad">
                       <div className="card-head">

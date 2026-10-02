@@ -1,8 +1,10 @@
 # PlayerIQ
 
-PlayerIQ is a football GPS performance platform. Phases 1–5.5 provide an authenticated path from a supported PDF to explicitly linked player sessions, automatic capture of printed chart labels where reliable, uploader review when needed, deterministic historical analytics, a personal-first and team workspace, and a grounded AI Analyst. Committed tests use synthetic data.
+PlayerIQ is a football GPS performance platform. Phases 1–5.6 provide an authenticated path from a supported PDF to guided player identity confirmation and explicitly linked sessions, automatic capture of printed chart labels where reliable, uploader review when needed, deterministic historical analytics, a personal-first and team workspace, and a grounded AI Analyst. Committed tests use synthetic data.
 
 Architecture and source data decisions: [SPEC.md](docs/SPEC.md), [GPS_DATA_MODEL.md](docs/GPS_DATA_MODEL.md), [INGESTION.md](docs/INGESTION.md), [AUTH.md](docs/AUTH.md), [PLAYER_IDENTITY.md](docs/PLAYER_IDENTITY.md), and [AI_ANALYST.md](docs/AI_ANALYST.md).
+
+Phase 5.6 places **Connect your player identity** directly below the dashboard welcome banner. Its action opens the only suitable processed report, offers a report picker at `/app/connect` when several are available, or offers upload/actual processing status when none is ready. Compact athlete cards lead to evidence review and **Confirm — This is me** through the existing backend. Only a backend-confirmed owned identity clears onboarding; connected accounts without accepted history have a distinct message. Future recognized rows still require session confirmation. No database migration or backend API change is needed for Phase 5.6.
 
 ## Development setup
 

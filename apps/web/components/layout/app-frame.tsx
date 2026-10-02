@@ -185,9 +185,11 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     );
   const title = pathname.startsWith("/app/uploads/")
     ? "Report Review"
-    : pathname.startsWith("/app/profile")
-      ? "Profile & Settings"
-      : (selected?.label ?? "PlayerIQ");
+    : pathname === "/app/connect"
+      ? "Connect Player Identity"
+      : pathname.startsWith("/app/profile")
+        ? "Profile & Settings"
+        : (selected?.label ?? "PlayerIQ");
   const initials = (identity.me.profile.display_name || player.display_name)
     .split(/\s+/)
     .slice(0, 2)

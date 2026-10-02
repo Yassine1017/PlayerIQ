@@ -37,10 +37,23 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("personal dashboard", () => {
+  it("does not hide onboarding for an identity belonging to another player", () => {
+    mocks.resources["dashboard-identities:p1"] = {
+      items: [{ id: "identity-other", player_id: "p2", status: "connected" }],
+    };
+    render(<Dashboard />);
+    expect(
+      screen.getByText("Connect your player identity"),
+    ).toBeInTheDocument();
+  });
   it("shows identity and accepted-session first-use guidance without fabricated zeros", () => {
     render(<Dashboard />);
-    expect(screen.getByText("Connect your GPS identity")).toBeInTheDocument();
-    expect(screen.getByText("No accepted sessions yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Connect your player identity"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Your GPS identity is connected"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText(/No accepted session yet/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /open analyst/i })).toHaveAttribute(
       "href",
@@ -51,7 +64,7 @@ describe("personal dashboard", () => {
 
   it("shows accepted history and team context from backend data", () => {
     mocks.resources["dashboard-identities:p1"] = {
-      items: [{ id: "identity-1", status: "connected" }],
+      items: [{ id: "identity-1", player_id: "p1", status: "connected" }],
     };
     mocks.resources["sessions:p1"] = { items: [playerSession] };
     mocks.resources["overview:p1"] = { facts: [fact] };
@@ -61,11 +74,26 @@ describe("personal dashboard", () => {
     );
     expect(screen.getAllByText("8,400 m").length).toBeGreaterThan(0);
     expect(
-      screen.queryByText("Connect your GPS identity"),
+      screen.queryByText("Connect your player identity"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /view all/i })).toHaveAttribute(
       "href",
       "/app/sessions",
     );
+  });
+  it("distinguishes connected identity without accepted history", () => {
+    mocks.resources["dashboard-identities:p1"] = {
+      items: [{ id: "identity-1", player_id: "p1", status: "connected" }],
+    };
+    render(<Dashboard />);
+    expect(
+      screen.getByText("Your GPS identity is connected"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/No accepted GPS history is available yet/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Connect your player identity"),
+    ).not.toBeInTheDocument();
   });
 });

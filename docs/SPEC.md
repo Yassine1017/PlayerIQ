@@ -247,9 +247,10 @@ The system instruction forbids medical/injury diagnoses and says workload outlie
 |---|---|
 | `/` | Redirects to the authenticated app; the guard sends signed-out visitors to sign-in. A public landing page remains future work. |
 | `/auth/sign-in`, `/auth/sign-up` | Supabase email/password forms and email-confirmation handoff. Invitation acceptance is future work. |
-| `/app` | Authenticated dashboard with reviewed metric cards, backend trend, records, recent sessions, and data-quality states. |
+| `/app` | Authenticated dashboard with prominent guided identity onboarding below the hero when unconnected, reviewed metric cards, backend trend, records, recent sessions, and a distinct connected/no-history state. |
+| `/app/connect` | Uploader-only report choices for identity selection; direct navigation only when one suitable report is known, actual processing states, upload fallback, and bounded older-history loading. |
 | `/app/upload` | PDF drag/drop, client-side format/size feedback, transfer progress, and uploader-only paginated upload history. |
-| `/app/uploads/[uploadId]` | Uploader-only report review, chart values, source recognition state, explicit “This is me” or manager teammate confirmation, and optional team assignment. |
+| `/app/uploads/[uploadId]` | Uploader-only report review with responsive self-selection cards, evidence confirmation, chart values, source recognition state, manager teammate confirmation, and optional team assignment. |
 | `/app/sessions` | Paginated accepted player history with primary metric columns and missing indicators. |
 | `/app/sessions/[sessionId]` | Linked player's accepted metric list, provenance references, validation notes, and an optional grounded AI explanation. No team PDF exposure. |
 | `/app/analytics` | Backend metric trend with date/type selectors, accessible chart and underlying table, overview facts, and workload outliers. |
@@ -257,6 +258,8 @@ The system instruction forbids medical/injury diagnoses and says workload outlie
 | `/app/team`, `/app/team/sessions`, `/app/team/sessions/[reportId]`, `/app/team/players`, `/app/team/players/[playerId]`, `/app/team/reports` | Team creation/join/approval, accepted activity overview, report-grouped sessions, role-filtered player directory/drilldown, and sanitized manager report summaries. |
 
 Phase 5 implements chat and AI interpretation in `/app/analyst`, with an analysis panel on accepted session detail. Public marketing, invitation acceptance, and data export/deletion UI remain future work.
+
+Phase 5.6 reuses Phase 5.5 identity/link endpoints. Report choices require an eligible row and reported date, plus the existing team scope when assigned. Client checks guide navigation only; the server remains authoritative for duplicates, ambiguous labels/dates, conflicts, authorization, and accepted metrics. Source identities are never inferred from account names. After explicit confirmation, the client verifies a connected identity for the owned player, refreshes profile state, and navigates to `/app`, where accepted history is fetched anew. A verification failure retains a retryable error and does not claim success. This phase changes no schema, RLS, AI rules, or backend calculations. See [PLAYER_IDENTITY.md](PLAYER_IDENTITY.md) for pagination limits and manual verification.
 
 Design direction: restrained sports analytics interface with strong typography, metric cards, legible charts, and distinct evidence/AI panels. Use responsive layouts and keyboard-accessible controls. Charts have text/table equivalents, units in labels, color-independent outlier indicators, and tooltips explaining definitions. The AI explanation is visually labeled as interpretation; computed values and cited sessions are separate, inspectable elements. Loading, partial-data, no-history, unsupported-report, and API-failure states must be designed, not left to generic error pages.
 
