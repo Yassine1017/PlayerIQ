@@ -6,6 +6,8 @@ An active coach/admin chooses a team on Upload GPS Report and submits **Upload a
 
 For an existing private upload, its uploader selects the team and session type on report review, then chooses **Assign team and import all athletes**. An already assigned report has an import panel with explicit sharing confirmation. No second PDF upload is needed. Only the uploader who is currently a coach/admin can request, retry, inspect or resolve import rows. A different team assignment returns 409. Existing accepted links must already belong to the destination roster/membership; assignment preserves session IDs and observations.
 
+Assignment flushes the source upload's team before updating its existing accepted sessions, within the same atomic transaction. PostgreSQL session UPDATE policies inspect the persisted source assignment; relying on ORM dirty-object ordering would reject otherwise authorized private-to-team reconciliation. This ordering needs no migration or broader grants.
+
 The PDF, source candidate rows, chart proposals and import row results remain uploader-private. Other team managers receive the roster and accepted team session projections, never raw review evidence. A player member sees only their own player/participant detail. Personal analytics/AI still require account ownership or an existing individual coach read grant; a team manager grant alone grants no personal AI access.
 
 ## Data model

@@ -9,6 +9,7 @@ from app.models.tables import (
     Player,
     PlayerSession,
     PlayerSourceIdentity,
+    ReportUpload,
     SessionMetricValue,
     SourceMetricObservation,
     TeamMembership,
@@ -20,7 +21,8 @@ from app.services.jobs import process_next_job
 from app.services.team_imports import process_next_team_import
 from conftest import make_synthetic_pdf
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import event, func, inspect, select
+from sqlalchemy.orm import Session
 from test_phase2_api import OTHER, OWNER, FakeStorage, _auth
 from test_phase2_api import phase2 as existing_phase2
 
@@ -321,7 +323,20 @@ def test_existing_private_upload_preserves_link_and_manual_chart_values(phase2, 
         },
     )
     assert linked.status_code == 200, linked.text
-    assert request(client, upload_id, team_id).status_code == 202
+
+    def assert_persisted_source_team(session, _flush_context, _instances):
+        for item in session.dirty:
+            if isinstance(item, PlayerSession) and inspect(item).attrs.team_id.history.has_changes():
+                persisted_team = session.connection().scalar(
+                    select(ReportUpload.team_id).where(ReportUpload.id == UUID(upload_id))
+                )
+                assert persisted_team == UUID(team_id)
+
+    event.listen(Session, "before_flush", assert_persisted_source_team)
+    try:
+        assert request(client, upload_id, team_id).status_code == 202
+    finally:
+        event.remove(Session, "before_flush", assert_persisted_source_team)
     process_next_team_import(database, database, settings)
     result = status(client, upload_id)
     assert result["rows"][0]["session_id"] == linked.json()["session_id"]

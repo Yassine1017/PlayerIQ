@@ -184,6 +184,10 @@ def assign_report_team(session: Session, actor_id: UUID, upload_id: UUID, team_i
     for player_session in linked:
         require_team_player(session, team_id, player_session.player_id)
     upload.team_id = team_id
+    # Session assignment RLS checks the persisted source upload's team. Flush
+    # that update first; ORM dirty-object ordering is not an authorization rule.
+    # Both updates still commit or roll back in this same transaction.
+    session.flush()
     for player_session in linked:
         player_session.team_id = team_id
         player_session.report_upload_id = upload_id
