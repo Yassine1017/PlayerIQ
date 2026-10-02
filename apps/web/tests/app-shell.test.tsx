@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   signOut: vi.fn().mockResolvedValue(undefined),
   session: null as object | null,
-  api: { me: vi.fn(), players: vi.fn() },
+  api: { me: vi.fn(), players: vi.fn(), teams: vi.fn() },
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mocks.replace }),
@@ -45,6 +45,7 @@ beforeEach(() => {
       },
     ],
   });
+  mocks.api.teams.mockResolvedValue({ items: [] });
 });
 afterEach(cleanup);
 describe("authenticated shell", () => {
@@ -70,6 +71,10 @@ describe("authenticated shell", () => {
     expect(screen.getByRole("link", { name: /my sessions/i })).toHaveAttribute(
       "href",
       "/app/sessions",
+    );
+    expect(screen.getByRole("link", { name: /my dashboard/i })).toHaveAttribute(
+      "href",
+      "/app",
     );
     fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
     await waitFor(() => expect(mocks.signOut).toHaveBeenCalledTimes(1));

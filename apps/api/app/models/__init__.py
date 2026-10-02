@@ -14,12 +14,17 @@ from app.models.tables import (
     Player,
     PlayerCoach,
     PlayerSession,
+    PlayerSourceIdentity,
     Profile,
     ReportPeriod,
     ReportUpload,
     SessionMetricValue,
     SourceAthleteRow,
     SourceMetricObservation,
+    Team,
+    TeamJoinRequest,
+    TeamManagerGrant,
+    TeamMembership,
 )
 
 __all__ = [
@@ -35,6 +40,7 @@ __all__ = [
     "IngestionJob",
     "Player",
     "PlayerCoach",
+    "PlayerSourceIdentity",
     "PlayerSession",
     "Profile",
     "ReportPeriod",
@@ -42,4 +48,8 @@ __all__ = [
     "SessionMetricValue",
     "SourceAthleteRow",
     "SourceMetricObservation",
+    "Team",
+    "TeamJoinRequest",
+    "TeamManagerGrant",
+    "TeamMembership",
 ]

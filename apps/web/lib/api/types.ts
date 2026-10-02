@@ -52,6 +52,9 @@ export interface CandidateRow {
   missing_metrics: string[];
   findings: Finding[];
   links: { session_id: string; player_id: string; quality_state: string }[];
+  source_identity_id?: string | null;
+  recognized_player_id?: string | null;
+  recognition_status?: string;
 }
 export interface Activity {
   source_title: string;
@@ -77,6 +80,56 @@ export interface UploadStatus {
   activity: Activity | null;
   findings: Finding[];
   candidate_rows: CandidateRow[];
+  team_id?: string | null;
+}
+export interface SourceIdentity {
+  id: string;
+  player_id: string;
+  team_id: string | null;
+  original_label: string;
+  parser_key: string;
+  confirmed_row_id: string;
+  confirmed_at: string;
+  status: "connected" | "revoked";
+}
+export interface Team {
+  id: string;
+  name: string;
+  role: "player" | "coach" | "admin";
+  player_id: string | null;
+  created_at: string;
+}
+export interface TeamSession {
+  report_upload_id: string;
+  local_date: string;
+  participant_count: number;
+  total_distance_m: string | null;
+  session_type: string;
+}
+export interface TeamMetric {
+  metric_key: string;
+  value: string;
+  unit: string;
+}
+export interface TeamParticipant {
+  player_id: string;
+  display_name: string;
+  session_id: string;
+  metrics: TeamMetric[];
+}
+export interface TeamPlayer {
+  id: string;
+  display_name: string;
+  latest_session_date: string | null;
+  latest_metrics: TeamMetric[];
+}
+export interface TeamJoinRequest {
+  id: string;
+  team_id: string;
+  user_id: string;
+  display_name: string;
+  status: string;
+  created_at: string;
 }
 export interface ChartReview {
   id: string;

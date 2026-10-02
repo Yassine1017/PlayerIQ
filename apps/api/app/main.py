@@ -12,6 +12,7 @@ from app.api.ai import router as ai_router
 from app.api.analytics import router as analytics_router
 from app.api.errors import register_exception_handlers
 from app.api.health import router as health_router
+from app.api.teams import router as teams_router
 from app.api.v1 import router as v1_router
 from app.core.auth import SupabaseJWTVerifier
 from app.core.config import Settings, get_settings
@@ -80,6 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_exception_handlers(app)
     app.include_router(health_router)
     app.include_router(v1_router)
+    app.include_router(teams_router)
     app.include_router(analytics_router)
     app.include_router(ai_router)
     return app

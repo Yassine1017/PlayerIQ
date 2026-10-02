@@ -20,6 +20,9 @@ vi.mock("@/lib/auth/provider", () => ({
     api: { uploadPdf: mocks.uploadPdf, uploads: mocks.uploads },
   }),
 }));
+vi.mock("@/components/layout/app-frame", () => ({
+  useApp: () => ({ teams: [] }),
+}));
 vi.mock("@/lib/data/use-resource", () => ({
   useResource: () => ({
     data: {

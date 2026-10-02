@@ -15,12 +15,12 @@ class HistoryLimitExceeded(ValueError):
     pass
 
 
-def load_player_history(session: Session, player_id: UUID) -> list[SessionValue]:
+def load_player_history(session: Session, player_id: UUID, team_id: UUID | None = None) -> list[SessionValue]:
+    query = select(PlayerSession).where(PlayerSession.player_id == player_id, PlayerSession.quality_state == "accepted")
+    if team_id is not None:
+        query = query.where(PlayerSession.team_id == team_id)
     rows = session.scalars(
-        select(PlayerSession)
-        .where(PlayerSession.player_id == player_id, PlayerSession.quality_state == "accepted")
-        .order_by(PlayerSession.local_date, PlayerSession.id)
-        .limit(MAX_ANALYTICS_SESSIONS + 1)
+        query.order_by(PlayerSession.local_date, PlayerSession.id).limit(MAX_ANALYTICS_SESSIONS + 1)
     ).all()
     if len(rows) > MAX_ANALYTICS_SESSIONS:
         raise HistoryLimitExceeded("Player history exceeds the supported analytics limit")

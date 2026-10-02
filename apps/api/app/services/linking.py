@@ -19,7 +19,7 @@ from app.models.tables import (
     SourceMetricObservation,
 )
 from app.schemas.v1 import LinkOut, LinkRequest
-from app.services.authorization import require_player, require_upload
+from app.services.authorization import require_player, require_team, require_team_player, require_upload
 from app.services.chart_reviews import sync_confirmed_chart_metrics
 
 
@@ -31,7 +31,19 @@ def link_athlete_row(
     settings: Settings,
 ) -> LinkOut:
     upload = require_upload(session, actor_id, upload_id)
-    require_player(session, actor_id, request.player_id, manage=True)
+    player = session.get(Player, request.player_id)
+    if player is None or player.archived_at is not None:
+        raise AppError("player_not_found", "Player not found", 404)
+    if player.owner_user_id == actor_id:
+        require_player(session, actor_id, request.player_id, manage=True)
+        if upload.team_id is not None:
+            require_team(session, actor_id, upload.team_id, manager=True)
+            require_team_player(session, upload.team_id, request.player_id)
+    elif upload.team_id is not None:
+        require_team(session, actor_id, upload.team_id, manager=True)
+        require_team_player(session, upload.team_id, request.player_id)
+    else:
+        raise AppError("player_not_found", "Player not found", 404)
     if upload.status != "awaiting_link":
         raise AppError("upload_not_ready", "Report is not ready for linking", 409)
     # Serializes same-player/date checks on PostgreSQL.
@@ -46,6 +58,15 @@ def link_athlete_row(
     )
     if source_row is None:
         raise AppError("row_not_found", "Athlete row not found in this report", 404)
+    identity_id = None
+    if request.source_identity_id is not None:
+        from app.services.source_identity import recognized_identity
+
+        report_for_recognition = session.get(ActivityReport, upload_id)
+        identity = recognized_identity(session, upload, report_for_recognition, source_row)
+        if identity is None or identity.id != request.source_identity_id or identity.player_id != request.player_id:
+            raise AppError("recognition_conflict", "Recognized identity requires review", 409)
+        identity_id = identity.id
     existing = session.scalar(select(PlayerSession).where(PlayerSession.source_athlete_row_id == source_row.id))
     if existing is not None:
         if existing.player_id == request.player_id and existing.session_type == request.session_type:
@@ -54,6 +75,7 @@ def link_athlete_row(
                 player_id=existing.player_id,
                 source_athlete_row_id=source_row.id,
                 quality_state=existing.quality_state,
+                link_method=existing.link_method,
             )
         raise AppError("row_already_linked", "Athlete row is already linked", 409)
     if source_row.participation_state != "ready":
@@ -119,12 +141,16 @@ def link_athlete_row(
 
     player_session = PlayerSession(
         player_id=request.player_id,
+        report_upload_id=upload_id,
+        team_id=upload.team_id,
         source_athlete_row_id=source_row.id,
         local_date=local_date,
         started_at=None,
         athlete_duration_s=None,
         session_type=request.session_type,
         quality_state="accepted",
+        link_method="recognized" if identity_id else "manual",
+        source_identity_id=identity_id,
     )
     session.add(player_session)
     session.flush()
@@ -153,6 +179,7 @@ def link_athlete_row(
         player_id=request.player_id,
         source_athlete_row_id=source_row.id,
         quality_state="accepted",
+        link_method=player_session.link_method,
     )
 
 

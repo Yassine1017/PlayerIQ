@@ -4,7 +4,7 @@ from datetime import date
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
@@ -13,12 +13,14 @@ from app.api.errors import AppError
 from app.core.auth import CurrentUser, get_current_user
 from app.core.config import Settings, get_settings
 from app.db.session import Database, get_database
-from app.models.tables import Player, PlayerCoach, Profile
+from app.models.tables import Player, PlayerCoach, PlayerSourceIdentity, Profile
 from app.schemas.v1 import (
     ChartReviewConfirmation,
     ChartReviewOut,
     ChartReviewProposal,
     ChartReviewsOut,
+    ClaimSelfOut,
+    ClaimSelfRequest,
     LinkOut,
     LinkRequest,
     MeOut,
@@ -27,8 +29,11 @@ from app.schemas.v1 import (
     PlayersOut,
     ProfileOut,
     ProfileUpdate,
+    RevokeIdentityRequest,
     SessionOut,
     SessionsOut,
+    SourceIdentitiesOut,
+    SourceIdentityOut,
     UploadCreated,
     UploadsOut,
     UploadStatusOut,
@@ -37,6 +42,7 @@ from app.services.authorization import require_player, require_upload
 from app.services.chart_reviews import confirm_chart_value, list_chart_reviews, propose_chart_value
 from app.services.linking import link_athlete_row
 from app.services.reading import get_session, list_sessions, list_uploads, upload_status
+from app.services.source_identity import claim_self, confirm_team_player, list_own_identities, revoke_identity
 from app.services.storage import ReportStorage, get_storage
 from app.services.uploads import create_upload
 
@@ -53,6 +59,19 @@ def _player_out(player: Player) -> PlayerOut:
         display_name=player.display_name,
         owner_user_id=player.owner_user_id,
         created_at=player.created_at,
+    )
+
+
+def _identity_out(value: PlayerSourceIdentity) -> SourceIdentityOut:
+    return SourceIdentityOut(
+        id=value.id,
+        player_id=value.player_id,
+        team_id=value.team_id,
+        original_label=value.original_label,
+        parser_key=value.parser_key,
+        confirmed_row_id=value.confirmed_row_id,
+        confirmed_at=value.confirmed_at,
+        status="revoked" if value.revoked_at is not None else "connected",
     )
 
 
@@ -134,6 +153,20 @@ def player_detail(player_id: UUID, user: User, database: DB) -> PlayerOut:
         return _player_out(require_player(session, user.id, player_id))
 
 
+@router.get("/me/source-identities", response_model=SourceIdentitiesOut)
+def my_source_identities(user: User, database: DB) -> SourceIdentitiesOut:
+    with database.user_transaction(user.id) as session:
+        return SourceIdentitiesOut(items=[_identity_out(value) for value in list_own_identities(session, user.id)])
+
+
+@router.post("/me/source-identities/{identity_id}/revoke", response_model=SourceIdentityOut)
+def revoke_source_identity(
+    identity_id: UUID, body: RevokeIdentityRequest, user: User, database: DB
+) -> SourceIdentityOut:
+    with database.user_transaction(user.id) as session:
+        return _identity_out(revoke_identity(session, user.id, identity_id))
+
+
 @router.post("/report-uploads", response_model=UploadCreated, status_code=202)
 async def upload_report(
     user: User,
@@ -141,10 +174,11 @@ async def upload_report(
     storage: Storage,
     file: Annotated[UploadFile, File()],
     settings: ConfiguredSettings,
+    team_id: Annotated[UUID | None, Form()] = None,
 ) -> UploadCreated:
     try:
         content = await file.read(settings.max_upload_bytes + 1)
-        upload = create_upload(database, storage, settings, user.id, file.filename, file.content_type, content)
+        upload = create_upload(database, storage, settings, user.id, file.filename, file.content_type, content, team_id)
         return UploadCreated(upload_id=upload.id, status=upload.status)
     finally:
         await file.close()
@@ -181,6 +215,56 @@ def link_report_row(
             return link_athlete_row(session, user.id, upload_id, body, settings)
     except IntegrityError as exc:
         raise AppError("link_conflict", "Athlete row link conflicts with existing data", 409) from exc
+
+
+@router.post("/report-uploads/{upload_id}/claim-as-self", response_model=ClaimSelfOut)
+def claim_report_row_as_self(
+    upload_id: UUID,
+    body: ClaimSelfRequest,
+    user: User,
+    database: DB,
+    settings: ConfiguredSettings,
+) -> ClaimSelfOut:
+    try:
+        with database.user_transaction(user.id) as session:
+            identity, session_id = claim_self(
+                session,
+                user.id,
+                upload_id,
+                body.source_athlete_row_id,
+                body.player_id,
+                body.confirmed_source_label,
+                body.session_type,
+                settings,
+            )
+            return ClaimSelfOut(session_id=session_id, identity=_identity_out(identity))
+    except IntegrityError as exc:
+        raise AppError("identity_conflict", "Source label conflicts with a confirmed mapping", 409) from exc
+
+
+@router.post("/report-uploads/{upload_id}/confirm-team-player", response_model=ClaimSelfOut)
+def confirm_report_team_player(
+    upload_id: UUID,
+    body: ClaimSelfRequest,
+    user: User,
+    database: DB,
+    settings: ConfiguredSettings,
+) -> ClaimSelfOut:
+    try:
+        with database.user_transaction(user.id) as session:
+            identity, session_id = confirm_team_player(
+                session,
+                user.id,
+                upload_id,
+                body.source_athlete_row_id,
+                body.player_id,
+                body.confirmed_source_label,
+                body.session_type,
+                settings,
+            )
+            return ClaimSelfOut(session_id=session_id, identity=_identity_out(identity))
+    except IntegrityError as exc:
+        raise AppError("identity_conflict", "Source label conflicts with a confirmed mapping", 409) from exc
 
 
 @router.get("/report-uploads/{upload_id}/chart-reviews", response_model=ChartReviewsOut)

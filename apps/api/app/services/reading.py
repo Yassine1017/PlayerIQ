@@ -2,7 +2,7 @@
 
 import base64
 import binascii
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date, datetime
 from uuid import UUID
 
@@ -33,6 +33,7 @@ from app.schemas.v1 import (
     UploadStatusOut,
     UploadSummaryOut,
 )
+from app.services.source_identity import normalize_source_label, recognized_identity
 
 
 def list_uploads(session: Session, actor_id: UUID, *, limit: int, cursor: str | None = None) -> UploadsOut:
@@ -135,6 +136,8 @@ def upload_status(session: Session, upload: ReportUpload) -> UploadStatusOut:
                 observations[observation.athlete_row_id].append(observation)
         for link in session.scalars(select(PlayerSession).where(PlayerSession.source_athlete_row_id.in_(row_ids))):
             links[link.source_athlete_row_id].append(link)
+    label_counts = Counter(normalize_source_label(row.source_name) for row in rows)
+    recognized_by_row = {row.id: recognized_identity(session, upload, report, row, label_counts) for row in rows}
     candidate_rows = [
         CandidateRowOut(
             id=row.id,
@@ -168,11 +171,25 @@ def upload_status(session: Session, upload: ReportUpload) -> UploadStatusOut:
                 ExistingLinkOut(session_id=link.id, player_id=link.player_id, quality_state=link.quality_state)
                 for link in links[row.id]
             ],
+            recognition_status=(
+                "linked"
+                if links[row.id]
+                else "zero_recorded"
+                if row.participation_state == "zero_recorded"
+                else "needs_review"
+                if row.participation_state != "ready"
+                else "recognized"
+                if recognized is not None
+                else "unlinked"
+            ),
+            recognized_player_id=recognized.player_id if recognized is not None else None,
+            source_identity_id=recognized.id if recognized is not None else None,
         )
-        for row in rows
+        for row, recognized in ((row, recognized_by_row[row.id]) for row in rows)
     ]
     return UploadStatusOut(
         upload_id=upload.id,
+        team_id=upload.team_id,
         status=upload.status,
         error_code=upload.error_code,
         activity=(
@@ -234,6 +251,7 @@ def _session_out(session: Session, player_session: PlayerSession) -> SessionOut:
         provenance=SessionProvenanceOut(
             source_athlete_row_id=source_row.id,
             report_upload_id=source_row.report_upload_id,
+            link_method=player_session.link_method,
         ),
     )
 

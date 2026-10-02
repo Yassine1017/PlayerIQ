@@ -1,6 +1,12 @@
 "use client";
 
-import { ArrowRight, ClipboardCheck, Trophy, UploadCloud } from "lucide-react";
+import {
+  ArrowRight,
+  ClipboardCheck,
+  Sparkles,
+  Trophy,
+  UploadCloud,
+} from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { TrendChart } from "@/components/analytics/trend-chart";
@@ -21,12 +27,20 @@ function windowDates() {
 }
 export default function Dashboard() {
   const { api } = useAuth();
-  const { player } = useApp();
+  const { player, team } = useApp();
   const [metric, setMetric] = useState<string>("total_distance_m");
   const [range] = useState(windowDates);
   const loadOverview = useCallback(
     (signal: AbortSignal) => api.overview(player.id, signal),
     [api, player.id],
+  );
+  const loadIdentities = useCallback(
+    (signal: AbortSignal) => api.sourceIdentities(signal),
+    [api],
+  );
+  const identities = useResource(
+    `dashboard-identities:${player.id}`,
+    loadIdentities,
   );
   const loadSessions = useCallback(
     (signal: AbortSignal) => api.sessions(player.id, 5, undefined, signal),
@@ -47,17 +61,52 @@ export default function Dashboard() {
     <div className="stack">
       <div className="hero">
         <div className="hero-content">
-          <span className="eyebrow">Your performance workspace</span>
+          <span className="eyebrow">My Dashboard · personal performance</span>
           <h1>Welcome back, {player.display_name.split(" ")[0]}.</h1>
           <p>
             Your reviewed GPS data, clear records, and session trends in one
             place.
+          </p>
+          <p className="mt-2 text-sm">
+            {sessions.data?.items[0]
+              ? `Latest accepted session: ${dateLabel(sessions.data.items[0].local_date)}`
+              : "No accepted session yet"}
+            {team ? ` · ${team.name}` : ""}
           </p>
           <Link href="/app/upload" className="btn btn-primary mt-3">
             Upload a report <ArrowRight size={15} />
           </Link>
         </div>
       </div>
+      {!identities.loading &&
+        !identities.error &&
+        !identities.data?.items.some((item) => item.status === "connected") && (
+          <div className="info-box">
+            <strong>Connect your GPS identity</strong>
+            <p className="mt-1 text-sm">
+              Your account name will never be matched to a report automatically.
+              Open a processed report, choose your own athlete row, and confirm
+              “This is me.”
+            </p>
+            <Link href="/app/upload" className="inline-link mt-2 inline-block">
+              Open My Reports →
+            </Link>
+          </div>
+        )}
+      {!sessions.loading &&
+        !sessions.error &&
+        sessions.data?.items.length === 0 && (
+          <div className="info-box">
+            <strong>No accepted sessions yet</strong>
+            <p className="mt-1 text-sm">
+              Review an uploaded report and link your eligible athlete row.
+              Missing history is shown as unavailable, not zero.
+            </p>
+            <Link href="/app/upload" className="inline-link mt-2 inline-block">
+              Review reports →
+            </Link>
+          </div>
+        )}
       {overview.error ? (
         <ErrorState
           message={overview.error.message}
@@ -228,11 +277,23 @@ export default function Dashboard() {
             <h3 className="mt-3 text-sm font-bold">Add a GPS report</h3>
             <p className="text-xs leading-5 text-slate-600">
               Upload a supported PDF, inspect the extracted athlete rows, then
-              choose and link your own row. Chart-only values require your
-              confirmation.
+              choose and link your own row. Review chart-only values when
+              automatic extraction is uncertain.
             </p>
             <Link href="/app/upload" className="btn btn-primary mt-2">
               Upload report <ArrowRight size={15} />
+            </Link>
+          </div>
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
+            <Sparkles className="text-sky-700" size={25} />
+            <h3 className="mt-3 text-sm font-bold">Ask the AI Analyst</h3>
+            <p className="text-xs leading-5 text-slate-600">
+              Explore your accepted history with answers grounded in
+              deterministic analytics. Opening the page does not start an AI
+              request.
+            </p>
+            <Link href="/app/analyst" className="btn btn-quiet mt-2">
+              Open Analyst <ArrowRight size={15} />
             </Link>
           </div>
         </section>

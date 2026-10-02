@@ -243,6 +243,6 @@ def test_concurrent_reservations_share_one_remaining_slot(phase2) -> None:
 
 def test_migration_chain_has_single_new_head() -> None:
     script = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert script.get_heads() == ["0008_ai_budget_precision"]
+    assert script.get_heads() == ["0009_player_identity_teams"]
     assert script.get_revision("0007_global_ai_budget").down_revision == "0006_ai_analyst"
     assert script.get_revision("0008_ai_budget_precision").down_revision == "0007_global_ai_budget"

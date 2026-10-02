@@ -1,6 +1,6 @@
-# Phase 2 authentication and database security
+# Authentication and database security
 
-Phase 5 migration `0006_ai_analyst` keeps AI runs, tool-call audit, chat threads, and chat messages in the private `playeriq` schema. The restricted API login receives SELECT/INSERT on these tables and UPDATE only for AI run completion; browser `anon`/`authenticated` roles receive none. Runs and audits belong to their actor and require current player access. Threads and messages belong to their creator, so a player cannot read a coach's chat or vice versa. Revoking a coach grant removes access on the next request. See [AI_ANALYST.md](AI_ANALYST.md) for the provider/data boundary. `OPENAI_API_KEY` is a backend-only environment variable.
+Phase 5 migration `0006_ai_analyst` keeps AI runs, tool-call audit, chat threads, and chat messages in the private `playeriq` schema. The restricted API login receives narrow operations; browser `anon`/`authenticated` roles receive none. Runs and audits belong to their actor and require current personal player access. Threads and messages remain creator-private. Phase 5.5 migration `0009_player_identity_teams` adds explicit team membership and confirmed source identities without expanding personal AI access. See [AI_ANALYST.md](AI_ANALYST.md) and [PLAYER_IDENTITY.md](PLAYER_IDENTITY.md). `OPENAI_API_KEY` is backend-only.
 
 ## Request trust path
 
@@ -14,9 +14,11 @@ For ingestion jobs, the API has only `INSERT` and an owner-scoped RLS insert pol
 
 | Resource | Current rule |
 | --- | --- |
-| Player profile and sessions | Owner read. An active pre-existing coach grant can read a player, but coach invitations and writes are deferred. |
+| Personal player profile, sessions, analytics and AI | Owner read. An active pre-existing individual coach read grant may access that player's data, but team membership alone does not. Personal AI chats/runs remain creator-private. |
 | Upload, candidate athlete rows, raw PDF | Uploader only, even after an athlete row is linked. |
-| Row linking | Uploader must also own the target player. A row must belong to that upload and have `ready` quality. |
+| Row linking | Uploader may link their owned player; for an explicitly assigned team report, the uploader must be a coach/admin and target an active team player. A row must belong to the report and be `ready`. A recognized identity is rechecked before link. |
+| Source identity | Uploader-owner can explicitly confirm their own label; an assigned-team uploader-manager can explicitly confirm a member's label. Only the owner can revoke a mapping. Names alone never establish a mapping. |
+| Team accepted projections | Active team members may see accepted activity summaries. Player role sees only their own participant/player detail; coach/admin may see members' accepted detail and sanitized report summaries. |
 | Session metrics | Only accepted, validated athlete observations are copied, retaining source observation IDs. Report/team aggregates are excluded. |
 | Chart reviews | Uploader alone may list, propose, and confirm values for ready rows in their report. The selected row UUID, not display name, controls the athlete match. Linked players see only their own confirmed metric and provenance summary through the session route. |
 | Analytics | Owner or active read-granted coach may query the selected player's accepted sessions. A player ID alone conveys no access. |
@@ -41,7 +43,7 @@ If the platform's role policy disallows role creation from your chosen migration
 
 5. In `.env`, set `DATABASE_URL`, `WORKER_DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_STORAGE_SECRET_KEY`, and optionally `SUPABASE_JWT_AUDIENCE`, `SUPABASE_STORAGE_BUCKET`, `JWKS_CACHE_SECONDS`, `MAX_UPLOAD_BYTES`, `CORS_ORIGINS`, and validation review thresholds. `.env.example` is placeholders only. The Phase 4 frontend uses the same project's URL and enabled **public publishable key** in its ignored `apps/web/.env.local`; this backend does not need that key. Never expose either database password or the Storage secret to the frontend.
 
-For a fresh development database, run `python -m alembic upgrade head` with the privileged migration URL temporarily in `DATABASE_URL`, then restore the restricted API URL. `python -m alembic current` should show `0008_ai_budget_precision`. Migration `0005` adds the uploader-only review table and policies; API updates/deletes of session metric values are restricted to the uploader's linked session and the two chart metric keys. The schema and RLS policies were applied to a separate development Supabase project through its migration API. Restricted runtime logins were verified previously; the final real-PDF browser retry remains manual.
+For a fresh development database, run `python -m alembic upgrade head` with the privileged migration URL temporarily in `DATABASE_URL`, then restore the restricted API URL. `python -m alembic current` should show `0009_player_identity_teams`. Migration `0005` adds uploader-only chart review. Migration `0009` adds the team/identity tables, the backfilled non-null report reference on sessions, a restricted manager/member policy matrix, and column-level UPDATE grants. On PlayerIQ Dev, all new tables were verified with forced RLS; `anon`/`authenticated` and the worker role have no access to the new tables. The API role has the intended access and cannot update identity scope or report Storage keys. Live authenticated browser verification remains manual.
 
 ## Verification
 

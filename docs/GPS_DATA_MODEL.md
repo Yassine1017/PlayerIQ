@@ -15,7 +15,7 @@ The PDF does not provide a stable athlete ID, athlete exposure duration, timezon
 | Activity identifier/title | `source_activity_id`, `source_title` | Preserve as source text; do not parse the identifier as a timestamp. |
 | Header clock | `reported_local_datetime` | Keep naive/local until the timezone and clock meaning are confirmed. |
 | `TOTAL TIME` | `activity_total_time_s` | Parse `H:MM:SS` at report scope only. Never assign it as athlete duration. |
-| `TEAM`, `VENUE` | `source_team_name`, `source_venue_name` | Preserve as source labels; V1 has no team entity. |
+| `TEAM`, `VENUE` | `source_team_name`, `source_venue_name` | Preserve as printed source labels. A PlayerIQ team is a separately created authorization workspace; the printed label alone does not assign a report to one. |
 | Athlete name/position | `source_name`, `source_position_code` | Preserve by row ordinal; explicit owner-authorized linking happens later. |
 | Period graphic | `report_periods` | Retain as unavailable until exact text extraction is supported. |
 
@@ -54,6 +54,8 @@ A configurable review rule flags a maximum velocity above 45 km/h while preservi
 ## Deterministic calculations and future fields
 
 After explicit row-to-player linking, pure versioned backend functions calculate historical changes, comparisons, personal records, and workload anomalies from accepted stored metrics. The HTTP layer and Phase 5 AI Analyst share the same analytics service. Each result includes `analytics_v1` and source session/observation IDs; a history fingerprint detects stale saved analyses. The LLM may explain those results but cannot invent numerical facts. Future adapters could add vendor zone definitions, athlete duration, and more providers only when reliable source evidence is available. No such values are inferred by the current adapter.
+
+Phase 5.5 adds an account-owned player identity, an explicitly confirmed source-label mapping, and optional team membership outside this GPS metric model. It does not introduce a provider athlete ID or infer one. Recognition uses a narrow parser/team/uploader scope and exact approved normalization, and still requires confirmation before a new accepted session exists. Team views read the same accepted `player_sessions` and `session_metric_values`; no source metric is duplicated for a team. See [PLAYER_IDENTITY.md](PLAYER_IDENTITY.md).
 
 ## Current adapter limits
 

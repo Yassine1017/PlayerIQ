@@ -10,9 +10,12 @@ import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
 import { dateLabel } from "@/lib/format";
 import { validatePdf } from "@/lib/upload";
+import { useApp } from "@/components/layout/app-frame";
 
 export default function UploadPage() {
   const { api } = useAuth();
+  const { teams } = useApp();
+  const [teamId, setTeamId] = useState("");
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -42,7 +45,11 @@ export default function UploadPage() {
     setError(null);
     setProgress(0);
     try {
-      const result = await api.uploadPdf(file, setProgress);
+      const result = await api.uploadPdf(
+        file,
+        setProgress,
+        teamId || undefined,
+      );
       router.push(`/app/uploads/${result.upload_id}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Upload failed");
@@ -131,6 +138,29 @@ export default function UploadPage() {
                 Remove
               </button>
             </div>
+          )}
+          {teams.some((t) => t.role !== "player") && (
+            <label className="field mt-4">
+              Report workspace
+              <select
+                className="select"
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+              >
+                <option value="">Private to my account</option>
+                {teams
+                  .filter((t) => t.role !== "player")
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} team workspace
+                    </option>
+                  ))}
+              </select>
+              <span className="helper">
+                The PDF and review stay private to you. Accepted linked sessions
+                can appear to team members.
+              </span>
+            </label>
           )}
           {progress !== null && (
             <div className="mt-4">

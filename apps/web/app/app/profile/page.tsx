@@ -2,12 +2,21 @@
 
 import { ShieldCheck, UserRound } from "lucide-react";
 import { useState } from "react";
+import Link from "next/link";
 import { useApp } from "@/components/layout/app-frame";
 import { useAuth } from "@/lib/auth/provider";
+import { useResource } from "@/lib/data/use-resource";
+import { ErrorState, Loading } from "@/components/ui/states";
+import { useCallback } from "react";
 
 export default function ProfilePage() {
   const { api } = useAuth();
   const { me, player, refreshIdentity } = useApp();
+  const loadIdentities = useCallback(
+    (signal: AbortSignal) => api.sourceIdentities(signal),
+    [api],
+  );
+  const identities = useResource("my-source-identities", loadIdentities);
   const [name, setName] = useState(me.profile?.display_name ?? "");
   const [timezone, setTimezone] = useState(me.profile?.timezone ?? "UTC");
   const [busy, setBusy] = useState(false);
@@ -28,6 +37,29 @@ export default function ProfilePage() {
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Could not save profile",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function revoke(id: string) {
+    if (
+      !window.confirm(
+        "Disconnect this GPS source identity? Existing accepted sessions stay in your history; future rows will no longer be recognized.",
+      )
+    )
+      return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.revokeSourceIdentity(id);
+      identities.refresh();
+      setMessage("GPS identity disconnected. Historical sessions remain.");
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Could not disconnect identity",
       );
     } finally {
       setBusy(false);
@@ -94,16 +126,12 @@ export default function ProfilePage() {
             <ShieldCheck size={19} className="text-emerald-600" />
           </div>
           <div className="key-value">
-            <span>Selected player</span>
+            <span>My player</span>
             <strong>{player.display_name}</strong>
           </div>
           <div className="key-value">
             <span>Profile type</span>
-            <strong>
-              {player.owner_user_id === me.user_id
-                ? "Owned player"
-                : "Granted access"}
-            </strong>
+            <strong>Owned player</strong>
           </div>
           <p className="helper mt-4">
             Report uploads and chart reviews remain available only to the
@@ -111,6 +139,67 @@ export default function ProfilePage() {
           </p>
         </section>
       </div>
+      <section className="card card-pad">
+        <div className="card-head">
+          <div>
+            <h2 className="section-title">GPS identity</h2>
+            <p className="section-subtitle">
+              A source label is connected only after you explicitly confirm your
+              row.
+            </p>
+          </div>
+          <ShieldCheck size={19} className="text-emerald-600" />
+        </div>
+        {identities.loading ? (
+          <Loading />
+        ) : identities.error ? (
+          <ErrorState
+            message={identities.error.message}
+            onRetry={identities.refresh}
+          />
+        ) : !identities.data?.items.some(
+            (item) => item.status === "connected",
+          ) ? (
+          <div className="info-box">
+            Not connected yet. Open one of your processed reports, select your
+            athlete row, then choose “This is me.”{" "}
+            <Link href="/app/upload" className="inline-link ml-1">
+              My Reports →
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {identities.data.items.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3"
+              >
+                <div>
+                  <span className="status success">
+                    {item.status === "connected" ? "Connected" : "Revoked"}
+                  </span>
+                  <strong className="block mt-2 text-sm">
+                    {item.original_label}
+                  </strong>
+                  <span className="helper">
+                    Confirmed {new Date(item.confirmed_at).toLocaleDateString()}
+                  </span>
+                </div>
+                {item.status === "connected" && (
+                  <button
+                    type="button"
+                    className="btn btn-quiet"
+                    disabled={busy}
+                    onClick={() => void revoke(item.id)}
+                  >
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

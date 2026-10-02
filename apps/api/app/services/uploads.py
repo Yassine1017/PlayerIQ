@@ -12,6 +12,7 @@ from app.db.session import Database
 from app.ingestion.adapters.activity_report_pdf_v1 import ActivityReportPdfV1Adapter
 from app.models.tables import IngestionJob, ReportUpload
 from app.repositories.uploads import content_sha256, find_active_duplicate
+from app.services.authorization import require_team
 from app.services.storage import ReportStorage
 
 logger = logging.getLogger(__name__)
@@ -46,10 +47,13 @@ def create_upload(
     filename: str | None,
     mime_type: str | None,
     content: bytes,
+    team_id: UUID | None = None,
 ) -> ReportUpload:
     display_filename = validate_pdf_upload(filename, mime_type, content, settings)
     digest = content_sha256(content)
     with database.user_transaction(actor_id) as session:
+        if team_id is not None:
+            require_team(session, actor_id, team_id, manager=True)
         if find_active_duplicate(session, actor_id, digest) is not None:
             raise AppError("duplicate_upload", "This report was already uploaded", 409)
 
@@ -61,8 +65,11 @@ def create_upload(
 
     try:
         with database.user_transaction(actor_id) as session:
+            if team_id is not None:
+                require_team(session, actor_id, team_id, manager=True)
             upload = ReportUpload(
                 uploaded_by_user_id=actor_id,
+                team_id=team_id,
                 storage_key=key,
                 original_filename=display_filename,
                 mime_type="application/pdf",

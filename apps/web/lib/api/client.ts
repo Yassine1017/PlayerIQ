@@ -11,6 +11,12 @@ import type {
   Player,
   PlayerSession,
   SessionType,
+  SourceIdentity,
+  Team,
+  TeamJoinRequest,
+  TeamPlayer,
+  TeamParticipant,
+  TeamSession,
   Upload,
   UploadStatus,
 } from "./types";
@@ -101,6 +107,124 @@ export class ApiClient {
       body: JSON.stringify({ display_name }),
     });
   }
+  sourceIdentities(signal?: AbortSignal) {
+    return this.request<{ items: SourceIdentity[] }>(
+      "/v1/me/source-identities",
+      { signal },
+    );
+  }
+  revokeSourceIdentity(id: string) {
+    return this.request<SourceIdentity>(
+      `/v1/me/source-identities/${id}/revoke`,
+      {
+        method: "POST",
+        body: JSON.stringify({ confirm: true }),
+      },
+    );
+  }
+  claimSelf(
+    uploadId: string,
+    body: {
+      source_athlete_row_id: string;
+      player_id: string;
+      confirmed_source_label: string;
+      session_type: SessionType;
+    },
+  ) {
+    return this.request<{ session_id: string; identity: SourceIdentity }>(
+      `/v1/report-uploads/${uploadId}/claim-as-self`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  }
+  confirmTeamPlayer(
+    uploadId: string,
+    body: {
+      source_athlete_row_id: string;
+      player_id: string;
+      confirmed_source_label: string;
+      session_type: SessionType;
+    },
+  ) {
+    return this.request<{ session_id: string; identity: SourceIdentity }>(
+      `/v1/report-uploads/${uploadId}/confirm-team-player`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  }
+  teams(signal?: AbortSignal) {
+    return this.request<{ items: Team[] }>("/v1/teams", { signal });
+  }
+  createTeam(name: string) {
+    return this.request<Team>("/v1/teams", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  }
+  requestTeamJoin(teamId: string) {
+    return this.request<TeamJoinRequest>(`/v1/teams/${teamId}/join-requests`, {
+      method: "POST",
+      body: "{}",
+    });
+  }
+  teamJoinRequests(teamId: string, signal?: AbortSignal) {
+    return this.request<{ items: TeamJoinRequest[] }>(
+      `/v1/teams/${teamId}/join-requests`,
+      { signal },
+    );
+  }
+  approveTeamJoin(teamId: string, requestId: string, role: "player" | "coach") {
+    return this.request<Team>(
+      `/v1/teams/${teamId}/join-requests/${requestId}/approve`,
+      { method: "POST", body: JSON.stringify({ role }) },
+    );
+  }
+  assignReportTeam(uploadId: string, teamId: string) {
+    return this.request<Team>(`/v1/report-uploads/${uploadId}/team`, {
+      method: "POST",
+      body: JSON.stringify({ team_id: teamId, confirm_share: true }),
+    });
+  }
+  teamDashboard(teamId: string, signal?: AbortSignal) {
+    return this.request<{
+      team: Team;
+      latest_session: TeamSession | null;
+      recent_sessions: TeamSession[];
+      player_count: number | null;
+      rule_version: string;
+    }>(`/v1/teams/${teamId}/dashboard`, { signal });
+  }
+  teamSessions(teamId: string, signal?: AbortSignal) {
+    return this.request<{ items: TeamSession[] }>(
+      `/v1/teams/${teamId}/sessions`,
+      { signal },
+    );
+  }
+  teamSession(teamId: string, reportId: string, signal?: AbortSignal) {
+    return this.request<{
+      summary: TeamSession;
+      participants: TeamParticipant[];
+    }>(`/v1/teams/${teamId}/sessions/${reportId}`, { signal });
+  }
+  teamPlayers(teamId: string, signal?: AbortSignal) {
+    return this.request<{ items: TeamPlayer[]; limited_to_self: boolean }>(
+      `/v1/teams/${teamId}/players`,
+      { signal },
+    );
+  }
+  teamPlayerOverview(teamId: string, playerId: string, signal?: AbortSignal) {
+    return this.request<Overview>(`/v1/teams/${teamId}/players/${playerId}`, {
+      signal,
+    });
+  }
+  teamReports(teamId: string, signal?: AbortSignal) {
+    return this.request<{
+      items: {
+        upload_id: string;
+        status: string;
+        created_at: string;
+        accepted_player_count: number;
+      }[];
+    }>(`/v1/teams/${teamId}/reports`, { signal });
+  }
   uploads(limit = 20, cursor?: string, signal?: AbortSignal) {
     const p = new URLSearchParams({ limit: String(limit) });
     if (cursor) p.set("cursor", cursor);
@@ -144,6 +268,7 @@ export class ApiClient {
     source_athlete_row_id: string,
     player_id: string,
     session_type: SessionType,
+    source_identity_id?: string,
   ) {
     return this.request<{
       session_id: string;
@@ -152,7 +277,12 @@ export class ApiClient {
       quality_state: string;
     }>(`/v1/report-uploads/${id}/links`, {
       method: "POST",
-      body: JSON.stringify({ source_athlete_row_id, player_id, session_type }),
+      body: JSON.stringify({
+        source_athlete_row_id,
+        player_id,
+        session_type,
+        source_identity_id,
+      }),
     });
   }
   sessions(
@@ -273,6 +403,7 @@ export class ApiClient {
   uploadPdf(
     file: File,
     onProgress: (percent: number) => void,
+    teamId?: string,
   ): Promise<{ upload_id: string; status: string }> {
     return this.token().then(
       (accessToken) =>
@@ -337,6 +468,7 @@ export class ApiClient {
           };
           const form = new FormData();
           form.append("file", file);
+          if (teamId) form.append("team_id", teamId);
           xhr.send(form);
         }),
     );

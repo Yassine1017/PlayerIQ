@@ -9,8 +9,10 @@ import {
   UploadCloud,
   X,
   CalendarDays,
-  ChevronDown,
   Sparkles,
+  UsersRound,
+  Layers3,
+  FolderOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -21,7 +23,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import type { Me, Player } from "@/lib/api/types";
+import type { Me, Player, Team } from "@/lib/api/types";
 import { useAuth, authConfigured } from "@/lib/auth/provider";
 import { ErrorState, Loading } from "@/components/ui/states";
 
@@ -30,8 +32,12 @@ interface AppContextValue {
   players: Player[];
   player: Player;
   ownedPlayer: Player | null;
+  teams: Team[];
+  team: Team | null;
+  teamError: string | null;
   refreshIdentity: () => Promise<void>;
-  selectPlayer: (id: string) => void;
+  refreshTeams: () => Promise<void>;
+  selectTeam: (id: string) => void;
 }
 const AppContext = createContext<AppContextValue | null>(null);
 export function useApp() {
@@ -40,12 +46,20 @@ export function useApp() {
   return value;
 }
 
-const nav = [
-  { href: "/app", label: "Dashboard", icon: House },
+const personalNav = [
+  { href: "/app", label: "My Dashboard", icon: House },
   { href: "/app/sessions", label: "My Sessions", icon: CalendarDays },
-  { href: "/app/upload", label: "Upload Report", icon: UploadCloud },
   { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/app/analyst", label: "AI Analyst", icon: Sparkles },
+];
+const teamNav = [
+  { href: "/app/team", label: "Team Dashboard", icon: Layers3 },
+  { href: "/app/team/sessions", label: "Team Sessions", icon: CalendarDays },
+  { href: "/app/team/players", label: "Players", icon: UsersRound },
+  { href: "/app/team/reports", label: "Team Reports", icon: FolderOpen },
+];
+const dataNav = [
+  { href: "/app/upload", label: "My Reports", icon: UploadCloud },
 ];
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
@@ -57,7 +71,9 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     players: Player[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamError, setTeamError] = useState<string | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const refreshIdentity = useCallback(async () => {
     try {
@@ -70,6 +86,20 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
           ? reason.message
           : "Could not load your profile",
       );
+    }
+  }, [api]);
+  const refreshTeams = useCallback(async () => {
+    try {
+      const result = await api.teams();
+      setTeams(result.items);
+      setTeamError(null);
+    } catch (reason) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : "Team workspace is unavailable";
+      setTeamError(message);
+      throw reason;
     }
   }, [api]);
   useEffect(() => {
@@ -94,6 +124,22 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               : "Could not load your profile",
           );
       });
+    api
+      .teams(controller.signal)
+      .then((foundTeams) => {
+        if (!controller.signal.aborted) {
+          setTeams(foundTeams.items);
+          setTeamError(null);
+        }
+      })
+      .catch((reason) => {
+        if (!controller.signal.aborted)
+          setTeamError(
+            reason instanceof Error
+              ? reason.message
+              : "Team workspace is unavailable",
+          );
+      });
     return () => controller.abort();
   }, [authLoading, session, router, api]);
   if (!authConfigured)
@@ -115,27 +161,28 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       </div>
     );
   if (!identity) return null;
-  if (!identity.me.profile || identity.players.length === 0)
-    return (
-      <Onboarding
-        me={identity.me}
-        hasPlayer={identity.players.length > 0}
-        onDone={refreshIdentity}
-      />
-    );
   const ownedPlayer =
     identity.players.find(
       (item) => item.owner_user_id === identity.me.user_id,
     ) ?? null;
-  const player =
-    identity.players.find((item) => item.id === selectedId) ??
-    ownedPlayer ??
-    identity.players[0];
-  const selected = nav.find(
-    (item) =>
-      pathname === item.href ||
-      (item.href !== "/app" && pathname.startsWith(`${item.href}/`)),
-  );
+  if (!identity.me.profile || !ownedPlayer)
+    return (
+      <Onboarding
+        me={identity.me}
+        hasPlayer={Boolean(ownedPlayer)}
+        onDone={refreshIdentity}
+      />
+    );
+  const player = ownedPlayer;
+  const team =
+    teams.find((item) => item.id === selectedTeamId) ?? teams[0] ?? null;
+  const selected = [...personalNav, ...teamNav, ...dataNav]
+    .sort((a, b) => b.href.length - a.href.length)
+    .find(
+      (item) =>
+        pathname === item.href ||
+        (item.href !== "/app" && pathname.startsWith(`${item.href}/`)),
+    );
   const title = pathname.startsWith("/app/uploads/")
     ? "Report Review"
     : pathname.startsWith("/app/profile")
@@ -154,8 +201,12 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
         players: identity.players,
         player,
         ownedPlayer,
+        teams,
+        team,
+        teamError,
         refreshIdentity,
-        selectPlayer: setSelectedId,
+        refreshTeams,
+        selectTeam: setSelectedTeamId,
       }}
     >
       <div className="app-shell">
@@ -185,15 +236,43 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               <X size={20} />
             </button>
           </div>
-          <div className="side-section">Workspace</div>
-          <nav>
-            {nav.map((item) => (
+          <div className="side-section">Personal</div>
+          <nav aria-label="Personal">
+            {personalNav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className={`nav-link ${pathname === item.href || (item.href !== "/app" && pathname.startsWith(`${item.href}/`)) ? "active" : ""}`}
                 aria-current={pathname === item.href ? "page" : undefined}
+              >
+                <item.icon size={17} />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="side-section">Team</div>
+          <nav aria-label="Team">
+            {teamNav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={`nav-link ${pathname === item.href || (item.href !== "/app/team" && pathname.startsWith(`${item.href}/`)) ? "active" : ""}`}
+              >
+                <item.icon size={17} />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="side-section">Data</div>
+          <nav aria-label="Data">
+            {dataNav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={`nav-link ${pathname === item.href || pathname.startsWith("/app/uploads/") ? "active" : ""}`}
               >
                 <item.icon size={17} />
                 {item.label}
@@ -242,27 +321,27 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               </span>
             </div>
             <div className="topbar-right">
-              {identity.players.length > 1 ? (
+              {pathname.startsWith("/app/team") && teams.length > 1 ? (
                 <label className="relative">
-                  <span className="sr-only">Selected player</span>
+                  <span className="sr-only">Selected team</span>
                   <select
                     className="topbar-player pr-7"
-                    value={player.id}
-                    onChange={(event) => setSelectedId(event.target.value)}
+                    value={team?.id ?? ""}
+                    onChange={(event) => setSelectedTeamId(event.target.value)}
                   >
-                    {identity.players.map((item) => (
+                    {teams.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.display_name}
+                        {item.name}
                       </option>
                     ))}
                   </select>
-                  <ChevronDown
-                    size={13}
-                    className="pointer-events-none absolute right-2 top-3"
-                  />
                 </label>
               ) : (
-                <span className="topbar-player">{player.display_name}</span>
+                <span className="topbar-player">
+                  {pathname.startsWith("/app/team")
+                    ? (team?.name ?? "Team workspace")
+                    : player.display_name}
+                </span>
               )}
               <span className="avatar">{initials}</span>
             </div>

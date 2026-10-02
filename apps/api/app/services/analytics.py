@@ -21,9 +21,9 @@ class AnalyticsOverview:
 
 
 class AnalyticsService:
-    def __init__(self, session: Session, player_id: UUID) -> None:
+    def __init__(self, session: Session, player_id: UUID, *, team_id: UUID | None = None) -> None:
         self.player_id = player_id
-        self.history: list[SessionValue] = load_player_history(session, player_id)
+        self.history: list[SessionValue] = load_player_history(session, player_id, team_id)
 
     def fingerprint(self) -> str:
         return domain.history_fingerprint(self.history)

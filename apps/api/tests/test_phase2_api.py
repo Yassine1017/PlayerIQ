@@ -14,6 +14,7 @@ from app.db.session import Database
 from app.main import create_app
 from app.models.tables import IngestionJob, PlayerSession, SessionMetricValue, SourceAthleteRow
 from app.services.jobs import process_next_job
+from conftest import make_synthetic_pdf
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.pool import StaticPool
@@ -339,6 +340,271 @@ def test_link_authorization_upload_membership_and_conflicts(
     assert link(second, second_rows[0]["id"], owner_player).status_code == 409
     assert client.get(f"/v1/players/{owner_player}/sessions", headers=_auth()).json()["items"][0]["id"]
     assert client.get(f"/v1/players/{other_player}/sessions", headers=_auth("other")).json()["items"] == []
+
+
+def test_confirmed_source_identity_recognizes_only_exact_active_scope(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings], synthetic_pdf: bytes
+) -> None:
+    client, database, storage, settings = phase2
+    client.patch("/v1/me", headers=_auth(), json={"display_name": "ATHLETE1", "timezone": "UTC"})
+    player_id = client.post("/v1/players", headers=_auth(), json={"display_name": "ATHLETE1"}).json()["id"]
+    first = _upload(client, synthetic_pdf)["upload_id"]
+    assert process_next_job(database, storage, settings)
+    rows = client.get(f"/v1/report-uploads/{first}", headers=_auth()).json()["candidate_rows"]
+    assert rows[0]["recognition_status"] == "unlinked"  # Account name is no proof.
+    assert client.get("/v1/me/source-identities", headers=_auth()).json()["items"] == []
+    url = f"/v1/report-uploads/{first}/claim-as-self"
+    body = {
+        "source_athlete_row_id": rows[0]["id"],
+        "player_id": player_id,
+        "confirmed_source_label": "ATHLETE1",
+        "session_type": "training",
+    }
+    assert client.post(url, headers=_auth("other"), json=body).status_code == 404
+    assert client.post(url, headers=_auth(), json={**body, "confirmed_source_label": "OTHER"}).status_code == 409
+    assert (
+        client.post(
+            url,
+            headers=_auth(),
+            json={**body, "source_athlete_row_id": rows[1]["id"], "confirmed_source_label": "ATHLETE2"},
+        ).status_code
+        == 422
+    )
+    claimed = client.post(url, headers=_auth(), json=body)
+    assert claimed.status_code == 200, claimed.text
+    identity = claimed.json()["identity"]
+    assert identity["original_label"] == "ATHLETE1"
+    assert identity["confirmed_row_id"] == rows[0]["id"]
+    assert identity["status"] == "connected"
+    assert client.post(url, headers=_auth(), json=body).json()["session_id"] == claimed.json()["session_id"]
+
+    second_pdf = make_synthetic_pdf("THURSDAY, MARCH 20, 2025", "20250320120000")
+    second = _upload(client, second_pdf)["upload_id"]
+    assert process_next_job(database, storage, settings)
+    future = client.get(f"/v1/report-uploads/{second}", headers=_auth()).json()["candidate_rows"]
+    assert future[0]["recognition_status"] == "recognized"
+    assert future[0]["recognized_player_id"] == player_id
+    assert future[0]["source_identity_id"] == identity["id"]
+    assert len(client.get(f"/v1/players/{player_id}/sessions", headers=_auth()).json()["items"]) == 1
+    recognized = client.post(
+        f"/v1/report-uploads/{second}/links",
+        headers=_auth(),
+        json={
+            "source_athlete_row_id": future[0]["id"],
+            "player_id": player_id,
+            "session_type": "training",
+            "source_identity_id": identity["id"],
+        },
+    )
+    assert recognized.status_code == 200, recognized.text
+    assert recognized.json()["link_method"] == "recognized"
+    assert len(client.get(f"/v1/players/{player_id}/sessions", headers=_auth()).json()["items"]) == 2
+    ambiguous_upload = _upload(client, make_synthetic_pdf("THURSDAY, APRIL 10, 2025", "20250410120000", "ATHLETE3"))[
+        "upload_id"
+    ]
+    assert process_next_job(database, storage, settings)
+    ambiguous_rows = client.get(f"/v1/report-uploads/{ambiguous_upload}", headers=_auth()).json()["candidate_rows"]
+    ambiguous_claim = client.post(
+        f"/v1/report-uploads/{ambiguous_upload}/claim-as-self",
+        headers=_auth(),
+        json={
+            "source_athlete_row_id": ambiguous_rows[0]["id"],
+            "player_id": player_id,
+            "confirmed_source_label": "ATHLETE3",
+            "session_type": "training",
+        },
+    )
+    assert ambiguous_claim.status_code == 409
+    assert ambiguous_claim.json()["error"]["code"] == "identity_ambiguous"
+
+    near = _upload(client, make_synthetic_pdf("THURSDAY, MARCH 27, 2025", "20250327120000", "ATHLETE1X"))["upload_id"]
+    assert process_next_job(database, storage, settings)
+    assert (
+        client.get(f"/v1/report-uploads/{near}", headers=_auth()).json()["candidate_rows"][0]["recognition_status"]
+        == "unlinked"
+    )
+    revoked = client.post(f"/v1/me/source-identities/{identity['id']}/revoke", headers=_auth(), json={"confirm": True})
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "revoked"
+    fourth = _upload(client, make_synthetic_pdf("THURSDAY, APRIL 3, 2025", "20250403120000"))["upload_id"]
+    assert process_next_job(database, storage, settings)
+    assert (
+        client.get(f"/v1/report-uploads/{fourth}", headers=_auth()).json()["candidate_rows"][0]["recognition_status"]
+        == "unlinked"
+    )
+    assert len(client.get(f"/v1/players/{player_id}/sessions", headers=_auth()).json()["items"]) == 2
+
+
+def test_team_workspace_shares_only_accepted_projections(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings], synthetic_pdf: bytes
+) -> None:
+    client, database, storage, settings = phase2
+    for actor, label in (("owner", "Alex Morgan"), ("other", "Jordan Lee")):
+        assert (
+            client.patch("/v1/me", headers=_auth(actor), json={"display_name": label, "timezone": "UTC"}).status_code
+            == 200
+        )
+    owner_player = client.post("/v1/players", headers=_auth(), json={"display_name": "Alex Morgan"}).json()["id"]
+    other_player = client.post("/v1/players", headers=_auth("other"), json={"display_name": "Jordan Lee"}).json()["id"]
+    team = client.post("/v1/teams", headers=_auth(), json={"name": "Synthetic FC"})
+    assert team.status_code == 201, team.text
+    team_id = team.json()["id"]
+    assert client.get(f"/v1/teams/{team_id}/dashboard", headers=_auth("other")).status_code == 404
+    request = client.post(f"/v1/teams/{team_id}/join-requests", headers=_auth("other"), json={})
+    assert request.status_code == 202, request.text
+    approved = client.post(
+        f"/v1/teams/{team_id}/join-requests/{request.json()['id']}/approve", headers=_auth(), json={"role": "player"}
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["player_id"] == other_player
+    assert client.get(f"/v1/teams/{team_id}/dashboard", headers=_auth("other")).status_code == 200
+    uploaded = client.post(
+        "/v1/report-uploads",
+        headers=_auth(),
+        data={"team_id": team_id},
+        files={"file": ("synthetic.pdf", synthetic_pdf, "application/pdf")},
+    )
+    assert uploaded.status_code == 202, uploaded.text
+    upload_id = uploaded.json()["upload_id"]
+    assert process_next_job(database, storage, settings)
+    rows = client.get(f"/v1/report-uploads/{upload_id}", headers=_auth()).json()["candidate_rows"]
+    linked = client.post(
+        f"/v1/report-uploads/{upload_id}/links",
+        headers=_auth(),
+        json={
+            "source_athlete_row_id": rows[0]["id"],
+            "player_id": owner_player,
+            "session_type": "training",
+        },
+    )
+    assert linked.status_code == 200, linked.text
+    teammate_body = {
+        "source_athlete_row_id": rows[2]["id"],
+        "player_id": other_player,
+        "confirmed_source_label": "ATHLETE3",
+        "session_type": "training",
+    }
+    assert (
+        client.post(
+            f"/v1/report-uploads/{upload_id}/confirm-team-player", headers=_auth("other"), json=teammate_body
+        ).status_code
+        == 404
+    )
+    teammate = client.post(f"/v1/report-uploads/{upload_id}/confirm-team-player", headers=_auth(), json=teammate_body)
+    assert teammate.status_code == 200, teammate.text
+    assert teammate.json()["identity"]["player_id"] == other_player
+    assert teammate.json()["identity"]["team_id"] == team_id
+    repeat = client.post(f"/v1/report-uploads/{upload_id}/confirm-team-player", headers=_auth(), json=teammate_body)
+    assert repeat.status_code == 200
+    assert repeat.json()["identity"]["id"] == teammate.json()["identity"]["id"]
+    assert (
+        client.post(
+            f"/v1/report-uploads/{upload_id}/claim-as-self",
+            headers=_auth(),
+            json={**teammate_body, "player_id": owner_player},
+        ).status_code
+        == 409
+    )
+    own_sessions = client.get(f"/v1/players/{owner_player}/sessions", headers=_auth()).json()["items"]
+    assert len(own_sessions) == 1
+    assert client.get(f"/v1/players/{owner_player}/sessions", headers=_auth("other")).status_code == 404
+    assert client.get(f"/v1/report-uploads/{upload_id}", headers=_auth("other")).status_code == 404
+    assert client.get(f"/v1/report-uploads/{upload_id}/file", headers=_auth("other")).status_code == 404
+    assert client.get(f"/v1/teams/{team_id}/reports", headers=_auth("other")).status_code == 404
+    dashboard = client.get(f"/v1/teams/{team_id}/dashboard", headers=_auth()).json()
+    assert dashboard["latest_session"]["participant_count"] == 2
+    assert dashboard["latest_session"]["report_upload_id"] == upload_id
+    assert dashboard["rule_version"] == "analytics_v1"
+    detail_url = f"/v1/teams/{team_id}/sessions/{upload_id}"
+    assert len(client.get(detail_url, headers=_auth()).json()["participants"]) == 2
+    member_detail = client.get(detail_url, headers=_auth("other")).json()
+    assert len(member_detail["participants"]) == 1
+    assert member_detail["participants"][0]["player_id"] == other_player
+    assert "source_name" not in str(member_detail)
+    assert len(client.get(f"/v1/teams/{team_id}/players", headers=_auth("other")).json()["items"]) == 1
+    assert client.get(f"/v1/teams/{team_id}/players/{owner_player}", headers=_auth("other")).status_code == 404
+    assert client.get(f"/v1/teams/{team_id}/players/{other_player}", headers=_auth("other")).status_code == 200
+    assert client.get(f"/v1/teams/{team_id}/players/{owner_player}", headers=_auth()).status_code == 200
+    next_upload = client.post(
+        "/v1/report-uploads",
+        headers=_auth(),
+        data={"team_id": team_id},
+        files={
+            "file": (
+                "synthetic.pdf",
+                make_synthetic_pdf("THURSDAY, MARCH 20, 2025", "20250320120000"),
+                "application/pdf",
+            )
+        },
+    )
+    assert next_upload.status_code == 202
+    assert process_next_job(database, storage, settings)
+    next_rows = client.get(f"/v1/report-uploads/{next_upload.json()['upload_id']}", headers=_auth()).json()[
+        "candidate_rows"
+    ]
+    assert next_rows[2]["recognition_status"] == "recognized"
+    assert next_rows[2]["recognized_player_id"] == other_player
+    assert (
+        client.post(
+            f"/v1/report-uploads/{next_upload.json()['upload_id']}/confirm-team-player",
+            headers=_auth(),
+            json={**teammate_body, "source_athlete_row_id": next_rows[2]["id"], "player_id": owner_player},
+        ).status_code
+        == 409
+    )
+    second_team = client.post("/v1/teams", headers=_auth(), json={"name": "Different Synthetic FC"}).json()["id"]
+    wrong_scope = client.post(
+        "/v1/report-uploads",
+        headers=_auth(),
+        data={"team_id": second_team},
+        files={
+            "file": (
+                "synthetic.pdf",
+                make_synthetic_pdf("THURSDAY, MARCH 27, 2025", "20250327120000"),
+                "application/pdf",
+            )
+        },
+    )
+    assert wrong_scope.status_code == 202
+    assert process_next_job(database, storage, settings)
+    wrong_rows = client.get(f"/v1/report-uploads/{wrong_scope.json()['upload_id']}", headers=_auth()).json()[
+        "candidate_rows"
+    ]
+    assert wrong_rows[2]["recognition_status"] == "unlinked"
+
+
+def test_existing_linked_upload_can_join_team_without_inferred_identity(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings], synthetic_pdf: bytes
+) -> None:
+    client, database, storage, settings = phase2
+    assert (
+        client.patch("/v1/me", headers=_auth(), json={"display_name": "Alex Morgan", "timezone": "UTC"}).status_code
+        == 200
+    )
+    player_id = client.post("/v1/players", headers=_auth(), json={"display_name": "Alex Morgan"}).json()["id"]
+    upload_id = _upload(client, synthetic_pdf)["upload_id"]
+    assert process_next_job(database, storage, settings)
+    row = client.get(f"/v1/report-uploads/{upload_id}", headers=_auth()).json()["candidate_rows"][0]
+    linked = client.post(
+        f"/v1/report-uploads/{upload_id}/links",
+        headers=_auth(),
+        json={"source_athlete_row_id": row["id"], "player_id": player_id, "session_type": "training"},
+    )
+    assert linked.status_code == 200, linked.text
+    assert client.get("/v1/me/source-identities", headers=_auth()).json()["items"] == []
+
+    team_id = client.post("/v1/teams", headers=_auth(), json={"name": "Synthetic FC"}).json()["id"]
+    assignment = f"/v1/report-uploads/{upload_id}/team"
+    assert (
+        client.post(assignment, headers=_auth("other"), json={"team_id": team_id, "confirm_share": True}).status_code
+        == 404
+    )
+    assert client.post(assignment, headers=_auth(), json={"team_id": team_id, "confirm_share": True}).status_code == 200
+    assert client.post(assignment, headers=_auth(), json={"team_id": team_id, "confirm_share": True}).status_code == 200
+    detail = client.get(f"/v1/teams/{team_id}/sessions/{upload_id}", headers=_auth()).json()
+    assert detail["summary"]["participant_count"] == 1
+    assert detail["participants"][0]["session_id"] == linked.json()["session_id"]
+    assert client.get("/v1/me/source-identities", headers=_auth()).json()["items"] == []
 
 
 def test_chart_review_is_uploader_only_and_updates_linked_history(

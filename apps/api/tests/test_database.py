@@ -44,7 +44,7 @@ def _upload(user_id, digest: str, status: str = "received") -> ReportUpload:
 
 
 def test_models_have_private_schema_and_expected_constraints() -> None:
-    assert len([table for table in Base.metadata.tables.values() if table.schema == "playeriq"]) == 19
+    assert len([table for table in Base.metadata.tables.values() if table.schema == "playeriq"]) == 24
     assert "playeriq.ai_provider_requests" in Base.metadata.tables
     assert Base.metadata.tables["auth.users"].info["external"] is True
     assert SourceAthleteRow.__table__.schema == "playeriq"

@@ -68,10 +68,13 @@ const processing = new Set(["received", "queued", "extracting", "validating"]);
 export default function UploadReviewPage() {
   const { uploadId } = useParams<{ uploadId: string }>();
   const { api } = useAuth();
-  const { ownedPlayer } = useApp();
+  const { ownedPlayer, teams } = useApp();
   const [selected, setSelected] = useState<string | null>(null);
   const [sessionType, setSessionType] = useState<SessionType>("training");
   const [linkBusy, setLinkBusy] = useState(false);
+  const [confirmIdentity, setConfirmIdentity] = useState(false);
+  const [targetPlayerId, setTargetPlayerId] = useState<string | null>(null);
+  const [teamToAssign, setTeamToAssign] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linkedSession, setLinkedSession] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
@@ -82,6 +85,38 @@ export default function UploadReviewPage() {
     [api, uploadId],
   );
   const status = useResource(`upload:${uploadId}`, load);
+  const reportTeam = teams.find((item) => item.id === status.data?.team_id);
+  const manager = reportTeam?.role === "admin" || reportTeam?.role === "coach";
+  const reportTeamId = status.data?.team_id;
+  const teamPlayersLoad = useCallback(
+    (signal: AbortSignal) =>
+      reportTeamId
+        ? api.teamPlayers(reportTeamId, signal)
+        : Promise.resolve({ items: [], limited_to_self: true }),
+    [api, reportTeamId],
+  );
+  const teamPlayers = useResource(
+    manager && status.data?.team_id
+      ? `upload-team-players:${status.data.team_id}`
+      : null,
+    teamPlayersLoad,
+  );
+  const linkablePlayers = reportTeamId
+    ? manager
+      ? (teamPlayers.data?.items ?? [])
+      : []
+    : ownedPlayer
+      ? [ownedPlayer]
+      : [];
+  const row = status.data?.candidate_rows.find((item) => item.id === selected);
+  const defaultPlayerId = linkablePlayers.some(
+    (item) => item.id === row?.recognized_player_id,
+  )
+    ? row?.recognized_player_id
+    : linkablePlayers.some((item) => item.id === ownedPlayer?.id)
+      ? ownedPlayer?.id
+      : linkablePlayers[0]?.id;
+  const selectedPlayerId = targetPlayerId ?? defaultPlayerId;
   const reviewLoad = useCallback(
     (signal: AbortSignal) => api.chartReviews(uploadId, signal),
     [api, uploadId],
@@ -101,7 +136,6 @@ export default function UploadReviewPage() {
     },
     [fileUrl],
   );
-  const row = status.data?.candidate_rows.find((item) => item.id === selected);
   async function openFile() {
     setFileBusy(true);
     setFileError(null);
@@ -117,21 +151,47 @@ export default function UploadReviewPage() {
     }
   }
   async function link() {
-    if (!row || !ownedPlayer) return;
+    if (!row || !selectedPlayerId || !confirmIdentity) return;
     setLinkBusy(true);
     setLinkError(null);
     try {
-      const result = await api.linkRow(
-        uploadId,
-        row.id,
-        ownedPlayer.id,
-        sessionType,
-      );
+      const chosen = selectedPlayerId;
+      const recognized =
+        row.recognized_player_id === chosen
+          ? (row.source_identity_id ?? undefined)
+          : undefined;
+      const claimBody = {
+        source_athlete_row_id: row.id,
+        player_id: chosen,
+        confirmed_source_label: row.source_name,
+        session_type: sessionType,
+      };
+      const result = recognized
+        ? await api.linkRow(uploadId, row.id, chosen, sessionType, recognized)
+        : chosen === ownedPlayer?.id
+          ? await api.claimSelf(uploadId, claimBody)
+          : await api.confirmTeamPlayer(uploadId, claimBody);
       setLinkedSession(result.session_id);
       status.refresh();
+      setConfirmIdentity(false);
     } catch (reason) {
       setLinkError(
         reason instanceof Error ? reason.message : "Could not link row",
+      );
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+  async function assignTeam() {
+    if (!teamToAssign) return;
+    setLinkBusy(true);
+    setLinkError(null);
+    try {
+      await api.assignReportTeam(uploadId, teamToAssign);
+      status.refresh();
+    } catch (reason) {
+      setLinkError(
+        reason instanceof Error ? reason.message : "Could not assign team",
       );
     } finally {
       setLinkBusy(false);
@@ -243,6 +303,50 @@ export default function UploadReviewPage() {
                     `Venue: ${status.data.activity.source_venue_name}`}
                 </p>
               )}
+              {status.data.team_id ? (
+                <p className="info-box mt-4">
+                  Team workspace: {reportTeam?.name ?? "Assigned team"}. Only
+                  accepted linked sessions appear in team analytics.
+                </p>
+              ) : (
+                teams.some((t) => t.role !== "player") && (
+                  <div className="mt-4 rounded-lg border border-slate-200 p-4">
+                    <h3 className="font-bold text-sm">
+                      Add this report to a team
+                    </h3>
+                    <p className="helper mt-1">
+                      Accepted linked player sessions will become visible in the
+                      selected team workspace. The PDF and review remain
+                      uploader-private.
+                    </p>
+                    <label className="field mt-3">
+                      Team
+                      <select
+                        className="select"
+                        value={teamToAssign}
+                        onChange={(e) => setTeamToAssign(e.target.value)}
+                      >
+                        <option value="">Select team</option>
+                        {teams
+                          .filter((t) => t.role !== "player")
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-quiet mt-3"
+                      disabled={!teamToAssign || linkBusy}
+                      onClick={() => void assignTeam()}
+                    >
+                      Confirm team assignment
+                    </button>
+                  </div>
+                )
+              )}
               {fileError && <div className="error-box mt-4">{fileError}</div>}
               {fileUrl && (
                 <div className="mt-4">
@@ -330,6 +434,7 @@ export default function UploadReviewPage() {
                             <th>Max velocity</th>
                             <th>Player Load</th>
                             <th>Quality</th>
+                            <th>Link status</th>
                             <th>
                               <span className="sr-only">Action</span>
                             </th>
@@ -370,6 +475,17 @@ export default function UploadReviewPage() {
                                 <Status value={item.quality_state} />
                               </td>
                               <td>
+                                {item.links.length
+                                  ? "Linked"
+                                  : item.recognition_status === "recognized"
+                                    ? "Recognized · confirm"
+                                    : item.quality_state === "zero_recorded"
+                                      ? "Zero activity"
+                                      : item.quality_state !== "ready"
+                                        ? "Needs review"
+                                        : "Unlinked"}
+                              </td>
+                              <td>
                                 {item.quality_state === "ready" ? (
                                   <button
                                     type="button"
@@ -377,6 +493,8 @@ export default function UploadReviewPage() {
                                     onClick={() => {
                                       setSelected(item.id);
                                       setLinkedSession(null);
+                                      setConfirmIdentity(false);
+                                      setTargetPlayerId(null);
                                     }}
                                   >
                                     {selected === item.id
@@ -447,13 +565,19 @@ export default function UploadReviewPage() {
                     <section className="card card-pad">
                       <div className="card-head">
                         <div>
-                          <span className="eyebrow">Explicit link</span>
+                          <span className="eyebrow">
+                            Confirm player identity
+                          </span>
                           <h2 className="section-title mt-2">
-                            Create your player session
+                            {row.recognized_player_id === selectedPlayerId
+                              ? "Recognized source identity"
+                              : selectedPlayerId === ownedPlayer?.id
+                                ? "Is this your athlete row?"
+                                : "Confirm this team player's row"}
                           </h2>
                           <p className="section-subtitle">
-                            This action links source row #{row.row_ordinal} to
-                            the player shown below.
+                            Confirm the source evidence below before linking.
+                            Names alone never establish an account identity.
                           </p>
                         </div>
                       </div>
@@ -463,20 +587,46 @@ export default function UploadReviewPage() {
                           same link returns the existing session.
                         </div>
                       )}
-                      {!ownedPlayer ? (
+                      {reportTeamId && manager && teamPlayers.loading ? (
+                        <Loading label="Loading team players…" />
+                      ) : teamPlayers.error ? (
+                        <ErrorState
+                          message={teamPlayers.error.message}
+                          onRetry={teamPlayers.refresh}
+                        />
+                      ) : !linkablePlayers.length ? (
                         <div className="info-box">
-                          This account does not own a player profile to link.
-                          Coach access alone cannot link this row.
+                          {reportTeamId && !manager
+                            ? "Team manager access is required to link this report."
+                            : "No eligible player profile is available for this report."}
                         </div>
                       ) : (
                         <div className="form-row">
                           <label className="field">
-                            Player profile
-                            <input
-                              className="input"
-                              readOnly
-                              value={ownedPlayer.display_name}
-                            />
+                            Link to player
+                            {manager ? (
+                              <select
+                                className="select"
+                                value={selectedPlayerId ?? ""}
+                                onChange={(e) => {
+                                  setTargetPlayerId(e.target.value);
+                                  setConfirmIdentity(false);
+                                }}
+                              >
+                                {linkablePlayers.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.display_name}
+                                    {p.id === ownedPlayer?.id ? " (me)" : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                className="input"
+                                readOnly
+                                value={ownedPlayer?.display_name ?? ""}
+                              />
+                            )}
                           </label>
                           <label className="field">
                             Session type
@@ -494,6 +644,67 @@ export default function UploadReviewPage() {
                           </label>
                         </div>
                       )}
+                      <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 mt-4 text-sm">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div>
+                            <span className="helper">Source athlete label</span>
+                            <strong className="block">{row.source_name}</strong>
+                          </div>
+                          <div>
+                            <span className="helper">Position</span>
+                            <strong className="block">
+                              {row.source_position_code ?? "Unreported"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="helper">Session date</span>
+                            <strong className="block">
+                              {dateLabel(
+                                status.data.activity?.reported_local_datetime,
+                              )}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="helper">Quality</span>
+                            <strong className="block">
+                              {row.quality_state}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="helper">Distance</span>
+                            <strong className="block">
+                              {sourceValue(row, "Distance (m)")}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="helper">Maximum Velocity</span>
+                            <strong className="block">
+                              {chartValue(
+                                row,
+                                "Maximum Velocity",
+                                "maximum_velocity_kmh",
+                                reviews.data?.items ?? [],
+                              )}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                      {!linkedSession && (
+                        <label className="mt-4 flex items-start gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={confirmIdentity}
+                            onChange={(e) =>
+                              setConfirmIdentity(e.target.checked)
+                            }
+                          />
+                          <span>
+                            I have checked this source row and confirm it
+                            belongs to the selected player.
+                          </span>
+                        </label>
+                      )}
                       {linkError && (
                         <div className="error-box mt-4" role="alert">
                           {linkError}
@@ -506,12 +717,23 @@ export default function UploadReviewPage() {
                           </div>
                           <div className="mt-3 flex gap-2">
                             <Link
-                              href={`/app/sessions/${linkedSession}`}
+                              href={
+                                selectedPlayerId === ownedPlayer?.id
+                                  ? `/app/sessions/${linkedSession}`
+                                  : `/app/team/sessions/${uploadId}`
+                              }
                               className="btn btn-primary"
                             >
                               View session <ArrowRight size={14} />
                             </Link>
-                            <Link href="/app" className="btn btn-quiet">
+                            <Link
+                              href={
+                                selectedPlayerId === ownedPlayer?.id
+                                  ? "/app"
+                                  : "/app/team"
+                              }
+                              className="btn btn-quiet"
+                            >
                               Dashboard
                             </Link>
                           </div>
@@ -520,12 +742,19 @@ export default function UploadReviewPage() {
                         <button
                           type="button"
                           className="btn btn-primary mt-5"
-                          disabled={!ownedPlayer || linkBusy}
+                          disabled={
+                            !selectedPlayerId || linkBusy || !confirmIdentity
+                          }
                           onClick={() => void link()}
                         >
                           {linkBusy
                             ? "Linking…"
-                            : `Link row #${row.row_ordinal} to ${ownedPlayer?.display_name ?? "player"}`}
+                            : selectedPlayerId &&
+                                selectedPlayerId !== ownedPlayer?.id
+                              ? "Confirm team player link"
+                              : row.recognized_player_id === selectedPlayerId
+                                ? "Confirm recognized link"
+                                : "This is me — confirm and link"}
                           <ArrowRight size={15} />
                         </button>
                       )}

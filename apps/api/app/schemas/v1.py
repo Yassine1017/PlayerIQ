@@ -130,6 +130,9 @@ class CandidateRowOut(StrictModel):
     missing_metrics: list[str]
     findings: list[FindingOut]
     links: list[ExistingLinkOut]
+    recognition_status: str = "unlinked"
+    recognized_player_id: UUID | None = None
+    source_identity_id: UUID | None = None
 
 
 class ActivityOut(StrictModel):
@@ -143,6 +146,7 @@ class ActivityOut(StrictModel):
 
 class UploadStatusOut(StrictModel):
     upload_id: UUID
+    team_id: UUID | None = None
     status: str
     error_code: str | None
     activity: ActivityOut | None
@@ -154,6 +158,7 @@ class LinkRequest(StrictModel):
     source_athlete_row_id: UUID
     player_id: UUID
     session_type: Literal["training", "match", "unknown"] = "unknown"
+    source_identity_id: UUID | None = None
 
 
 class LinkOut(StrictModel):
@@ -161,6 +166,38 @@ class LinkOut(StrictModel):
     player_id: UUID
     source_athlete_row_id: UUID
     quality_state: str
+    link_method: str = "manual"
+
+
+class ClaimSelfRequest(StrictModel):
+    source_athlete_row_id: UUID
+    player_id: UUID
+    confirmed_source_label: str = Field(min_length=1, max_length=255)
+    session_type: Literal["training", "match", "unknown"] = "unknown"
+
+
+class SourceIdentityOut(StrictModel):
+    id: UUID
+    player_id: UUID
+    team_id: UUID | None
+    original_label: str
+    parser_key: str
+    confirmed_row_id: UUID
+    confirmed_at: datetime
+    status: Literal["connected", "revoked"]
+
+
+class SourceIdentitiesOut(StrictModel):
+    items: list[SourceIdentityOut]
+
+
+class ClaimSelfOut(StrictModel):
+    session_id: UUID
+    identity: SourceIdentityOut
+
+
+class RevokeIdentityRequest(StrictModel):
+    confirm: Literal[True]
 
 
 class ChartReviewProposal(StrictModel):
@@ -210,6 +247,7 @@ class SessionMetricOut(StrictModel):
 class SessionProvenanceOut(StrictModel):
     source_athlete_row_id: UUID
     report_upload_id: UUID
+    link_method: str = "manual"
 
 
 class SessionOut(StrictModel):

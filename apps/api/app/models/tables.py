@@ -91,6 +91,92 @@ class PlayerCoach(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Team(Base, UuidId, CreatedAt):
+    __tablename__ = "teams"
+
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+
+
+class TeamMembership(Base):
+    __tablename__ = "team_memberships"
+    __table_args__ = (
+        CheckConstraint("role IN ('player','coach','admin')", name="team_role"),
+        Index("ix_team_memberships_player", "player_id"),
+    )
+
+    team_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), primary_key=True)
+    player_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.players.id"))
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TeamManagerGrant(Base):
+    """Small RLS lookup table that avoids a recursive membership policy."""
+
+    __tablename__ = "team_manager_grants"
+
+    team_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), primary_key=True)
+
+
+class TeamJoinRequest(Base, UuidId, CreatedAt):
+    __tablename__ = "team_join_requests"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending','approved','declined')", name="join_status"),
+        Index(
+            "uq_team_join_pending",
+            "team_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+            sqlite_where=text("status = 'pending'"),
+        ),
+    )
+
+    team_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+    player_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.players.id"))
+    display_name_snapshot: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PlayerSourceIdentity(Base, UuidId, CreatedAt):
+    """A player-owner confirmed source label within one report/provider scope."""
+
+    __tablename__ = "player_source_identities"
+    __table_args__ = (
+        Index(
+            "uq_source_identity_active",
+            "scope_key",
+            "parser_key",
+            "normalized_label",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+        Index("ix_source_identity_player", "player_id", "revoked_at"),
+    )
+
+    player_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.players.id"), nullable=False)
+    team_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"))
+    scope_key: Mapped[str] = mapped_column(String(300), nullable=False)
+    parser_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    normalized_label: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_label: Mapped[str] = mapped_column(String(255), nullable=False)
+    confirmed_row_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.source_athlete_rows.id"), nullable=False
+    )
+    created_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+    confirmed_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ReportUpload(Base, UuidId, CreatedAt):
     __tablename__ = "report_uploads"
     __table_args__ = (
@@ -112,6 +198,7 @@ class ReportUpload(Base, UuidId, CreatedAt):
     )
 
     uploaded_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+    team_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"))
     storage_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -304,10 +391,16 @@ class PlayerSession(Base, UuidId, CreatedAt):
     __table_args__ = (
         CheckConstraint("session_type IN ('training','match','unknown')", name="session_type"),
         CheckConstraint("quality_state IN ('accepted','held')", name="quality_state"),
+        CheckConstraint("link_method IN ('manual','recognized')", name="link_method"),
         Index("ix_player_sessions_player_date", "player_id", "local_date", "id"),
+        Index("ix_player_sessions_team_report", "team_id", "report_upload_id"),
     )
 
     player_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.players.id"), nullable=False)
+    report_upload_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.report_uploads.id"), nullable=False
+    )
+    team_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"))
     source_athlete_row_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("playeriq.source_athlete_rows.id"), unique=True, nullable=False
     )
@@ -316,6 +409,10 @@ class PlayerSession(Base, UuidId, CreatedAt):
     athlete_duration_s: Mapped[int | None] = mapped_column(Integer)
     session_type: Mapped[str] = mapped_column(String(20), nullable=False, default="unknown")
     quality_state: Mapped[str] = mapped_column(String(16), nullable=False, default="held")
+    link_method: Mapped[str] = mapped_column(String(16), nullable=False, default="manual")
+    source_identity_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.player_source_identities.id")
+    )
 
 
 class SessionMetricValue(Base):
