@@ -1,6 +1,7 @@
 """Synthetic end-to-end tests for authenticated upload, review and explicit linking."""
 
 from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from sqlite3 import OperationalError
 from uuid import UUID, uuid4
@@ -11,12 +12,26 @@ from app.core.auth import CurrentUser
 from app.core.config import Settings, get_settings
 from app.db.base import Base, auth_users
 from app.db.session import Database
+from app.ingestion.service import IngestionService
 from app.main import create_app
-from app.models.tables import IngestionJob, PlayerSession, SessionMetricValue, SourceAthleteRow
+from app.models.tables import (
+    IngestionFinding,
+    IngestionJob,
+    PlayerSession,
+    SessionMetricValue,
+    SourceAthleteRow,
+    SourceMetricObservation,
+)
+from app.services.chart_backfill import (
+    BACKFILL_CODE,
+    apply_chart_backfill,
+    next_legacy_chart_report,
+    process_next_chart_backfill,
+)
 from app.services.jobs import process_next_job
 from conftest import make_synthetic_pdf
 from fastapi.testclient import TestClient
-from sqlalchemy import Select, create_engine, event, select
+from sqlalchemy import Select, create_engine, event, func, select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.pool import StaticPool
 
@@ -838,3 +853,210 @@ def test_worker_persists_automatic_chart_values_and_manual_correction(
         )["value"]
         == "30.250"
     )
+
+
+@pytest.mark.parametrize("link_first", [True, False])
+@pytest.mark.parametrize("manual_speed", [None, "30.25", "52.50"])
+def test_legacy_chart_backfill_preserves_links_reviews_and_private_evidence(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings],
+    synthetic_text_chart_pdf: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+    link_first: bool,
+    manual_speed: str | None,
+) -> None:
+    import app.ingestion.adapters.activity_report_pdf_v1 as adapter
+
+    client, database, storage, settings = phase2
+    player_id = client.post("/v1/players", headers=_auth(), json={"display_name": "Synthetic Player"}).json()["id"]
+    upload_id = _upload(client, synthetic_text_chart_pdf)["upload_id"]
+    with monkeypatch.context() as legacy:
+        legacy.setattr(adapter.ActivityReportPdfV1Adapter, "version", "1.0.0")
+        legacy.setattr(adapter, "extract_chart_metrics", lambda *args: [])
+        assert process_next_job(database, storage, settings)
+    url = f"/v1/report-uploads/{upload_id}"
+    before_rows = client.get(url, headers=_auth()).json()["candidate_rows"]
+    assert "Maximum Velocity" in before_rows[0]["missing_metrics"]
+    assert "Player Load" in before_rows[0]["missing_metrics"]
+    link_body = {"player_id": player_id, "source_athlete_row_id": before_rows[0]["id"], "session_type": "training"}
+    session_id = None
+    if link_first:
+        linked = client.post(f"{url}/links", headers=_auth(), json=link_body)
+        assert linked.status_code == 200, linked.text
+        session_id = linked.json()["session_id"]
+    if manual_speed is not None:
+        chart_url = f"{url}/chart-reviews"
+        proposal = client.post(
+            chart_url,
+            headers=_auth(),
+            json={
+                "source_athlete_row_id": before_rows[0]["id"],
+                "metric_key": "maximum_velocity_kmh",
+                "raw_label": manual_speed,
+            },
+        )
+        assert proposal.status_code == 201, proposal.text
+        confirmed = client.post(
+            f"{chart_url}/{proposal.json()['id']}/confirm",
+            headers=_auth(),
+            json={"source_athlete_row_id": before_rows[0]["id"], "raw_label": manual_speed},
+        )
+        assert confirmed.status_code == 200, confirmed.text
+        assert confirmed.json()["status"] == ("held" if manual_speed == "52.50" else "confirmed")
+    overview_url = f"/v1/players/{player_id}/analytics/overview"
+    fingerprint = client.get(overview_url, headers=_auth()).json()["history_fingerprint"]
+    assert process_next_chart_backfill(database, database, storage, settings)
+    assert process_next_chart_backfill(database, database, storage, settings) is False
+    rows = client.get(url, headers=_auth()).json()["candidate_rows"]
+    assert [r["id"] for r in rows] == [r["id"] for r in before_rows]
+    assert "Player Load" not in rows[0]["missing_metrics"]
+    assert next(m for m in rows[1]["metrics"] if m["source_label"] == "Player Load")["raw_value"] == "0"
+    assert (
+        next(m for m in rows[2]["metrics"] if m["source_label"] == "Maximum Velocity")["quality_state"]
+        == "needs_review"
+    )
+    assert "Player Load" in rows[3]["missing_metrics"]
+    if not link_first:
+        assert client.get(f"/v1/players/{player_id}/sessions", headers=_auth()).json()["items"] == []
+        linked = client.post(f"{url}/links", headers=_auth(), json=link_body)
+        assert linked.status_code == 200, linked.text
+        session_id = linked.json()["session_id"]
+    detail = client.get(f"/v1/players/{player_id}/sessions/{session_id}", headers=_auth()).json()
+    accepted = {m["metric_key"]: m for m in detail["metrics"]}
+    assert accepted["total_distance_m"]["value"] == "3000.000"
+    assert accepted["player_load_reported"]["value"] == "420.000"
+    if manual_speed == "52.50":
+        assert "maximum_velocity_kmh" not in accepted
+    else:
+        assert accepted["maximum_velocity_kmh"]["value"] == ("30.250" if manual_speed else "29.750")
+    assert client.get(overview_url, headers=_auth()).json()["history_fingerprint"] != fingerprint
+    assert client.get(url, headers=_auth("other")).status_code == 404
+    assert client.get(f"{url}/file", headers=_auth("other")).status_code == 404
+    assert storage.objects and next(iter(storage.objects.values())) == synthetic_text_chart_pdf
+    with database.user_transaction(OWNER) as session:
+        originals = session.scalars(
+            select(SourceMetricObservation).where(
+                SourceMetricObservation.athlete_row_id == UUID(before_rows[0]["id"]),
+                SourceMetricObservation.parser_version == "1.0.0",
+                SourceMetricObservation.source_label.in_(["Maximum Velocity", "Player Load"]),
+            )
+        ).all()
+        assert len(originals) == 2 and all(o.raw_value is None for o in originals)
+        assert session.scalar(select(func.count(PlayerSession.id))) == 1
+        assert (
+            session.scalar(select(func.count(IngestionFinding.id)).where(IngestionFinding.code == BACKFILL_CODE)) == 1
+        )
+
+
+@pytest.mark.parametrize("change", ["bytes", "athlete", "date"])
+def test_legacy_backfill_rejects_changed_source_without_writes(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings],
+    synthetic_text_chart_pdf: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+    change: str,
+) -> None:
+    import app.ingestion.adapters.activity_report_pdf_v1 as adapter
+
+    client, database, storage, settings = phase2
+    upload_id = _upload(client, synthetic_text_chart_pdf)["upload_id"]
+    with monkeypatch.context() as legacy:
+        legacy.setattr(adapter.ActivityReportPdfV1Adapter, "version", "1.0.0")
+        legacy.setattr(adapter, "extract_chart_metrics", lambda *args: [])
+        assert process_next_job(database, storage, settings)
+    before = client.get(f"/v1/report-uploads/{upload_id}", headers=_auth()).json()
+    if change == "bytes":
+        storage.objects[next(iter(storage.objects))] = b"changed synthetic bytes"
+        with pytest.raises(ValueError, match="storage hash"):
+            process_next_chart_backfill(database, database, storage, settings)
+    else:
+        claim = next_legacy_chart_report(database)
+        assert claim is not None
+        inspection = IngestionService(settings).inspect_pdf(synthetic_text_chart_pdf)
+        assert inspection.extraction.report is not None
+        if change == "athlete":
+            inspection.extraction.report.athlete_rows[0].source_name = "OTHER SYNTHETIC ATHLETE"
+        else:
+            inspection.extraction.report.reported_local_datetime = datetime(2025, 3, 14, 12)
+        with pytest.raises(ValueError, match="no longer match"):
+            with database.user_transaction(OWNER) as session:
+                apply_chart_backfill(session, claim, inspection)
+    assert client.get(f"/v1/report-uploads/{upload_id}", headers=_auth()).json() == before
+    with database.user_transaction(OWNER) as session:
+        assert (
+            session.scalar(select(func.count(IngestionFinding.id)).where(IngestionFinding.code == BACKFILL_CODE)) == 0
+        )
+
+
+def test_legacy_backfill_retries_after_audit_failure_without_duplicate_evidence(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings],
+    synthetic_text_chart_pdf: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.ingestion.adapters.activity_report_pdf_v1 as adapter
+
+    client, database, storage, settings = phase2
+    upload_id = _upload(client, synthetic_text_chart_pdf)["upload_id"]
+    with monkeypatch.context() as legacy:
+        legacy.setattr(adapter.ActivityReportPdfV1Adapter, "version", "1.0.0")
+        legacy.setattr(adapter, "extract_chart_metrics", lambda *args: [])
+        assert process_next_job(database, storage, settings)
+    worker_transaction = database.worker_transaction
+    calls = 0
+
+    @contextmanager
+    def fail_audit():  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("Synthetic audit outage")
+        with worker_transaction() as session:
+            yield session
+
+    with monkeypatch.context() as outage:
+        outage.setattr(database, "worker_transaction", fail_audit)
+        with pytest.raises(RuntimeError, match="Synthetic audit outage"):
+            process_next_chart_backfill(database, database, storage, settings)
+    first = client.get(f"/v1/report-uploads/{upload_id}", headers=_auth()).json()["candidate_rows"]
+    with database.user_transaction(OWNER) as session:
+        source_ids = set(session.scalars(select(SourceMetricObservation.id)).all())
+    assert process_next_chart_backfill(database, database, storage, settings)
+    assert process_next_chart_backfill(database, database, storage, settings) is False
+    second = client.get(f"/v1/report-uploads/{upload_id}", headers=_auth()).json()["candidate_rows"]
+    assert [r["metrics"] for r in second] == [r["metrics"] for r in first]
+    with database.user_transaction(OWNER) as session:
+        assert set(session.scalars(select(SourceMetricObservation.id)).all()) == source_ids
+        assert (
+            session.scalar(select(func.count(IngestionFinding.id)).where(IngestionFinding.code == BACKFILL_CODE)) == 1
+        )
+
+
+def test_existing_worker_cli_automatically_backfills_legacy_uploads_with_shared_limit(
+    phase2: tuple[TestClient, Database, FakeStorage, Settings],
+    synthetic_text_chart_pdf: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.cli.process_ingestion as cli
+    import app.ingestion.adapters.activity_report_pdf_v1 as adapter
+
+    client, database, storage, settings = phase2
+    with monkeypatch.context() as legacy:
+        legacy.setattr(adapter.ActivityReportPdfV1Adapter, "version", "1.0.0")
+        legacy.setattr(adapter, "extract_chart_metrics", lambda *args: [])
+        for content in (synthetic_text_chart_pdf, synthetic_text_chart_pdf + b"\n% distinct synthetic fixture\n"):
+            _upload(client, content)
+            assert process_next_job(database, storage, settings)
+    configured = settings.model_copy(update={"database_url": "sqlite://", "worker_database_url": "sqlite://"})
+    monkeypatch.setattr(cli, "get_settings", lambda: configured)
+    monkeypatch.setattr(cli, "make_engine", lambda *args: database.engine)
+    monkeypatch.setattr(cli, "Database", lambda *args, **kwargs: database)
+    monkeypatch.setattr(cli, "SupabaseReportStorage", lambda *args: storage)
+    monkeypatch.setattr(database.engine, "dispose", lambda: None)
+    monkeypatch.setattr("sys.argv", ["process_ingestion", "--limit", "1"])
+    cli.main()
+    with database.user_transaction(OWNER) as session:
+        assert (
+            session.scalar(select(func.count(IngestionFinding.id)).where(IngestionFinding.code == BACKFILL_CODE)) == 1
+        )
+        assert session.scalar(select(func.count(PlayerSession.id))) == 0
+    assert next_legacy_chart_report(database) is not None
+    cli.main()
+    assert next_legacy_chart_report(database) is None

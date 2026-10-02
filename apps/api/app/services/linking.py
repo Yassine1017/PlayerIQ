@@ -18,6 +18,7 @@ from app.models.tables import (
     SourceAthleteRow,
     SourceMetricObservation,
 )
+from app.repositories.observations import effective_observations
 from app.schemas.v1 import LinkOut, LinkRequest
 from app.services.authorization import require_player, require_team, require_team_player, require_upload
 from app.services.chart_reviews import sync_confirmed_chart_metrics
@@ -173,6 +174,9 @@ def link_athlete_row(
                 quality_state=metric.quality_state.value,
             )
         )
+    # Sessions use autoflush=False; persist automatic slots before applying an
+    # authoritative manual correction or held label to the same metric key.
+    session.flush()
     sync_confirmed_chart_metrics(session, player_session, upload.parser_key)
     return LinkOut(
         session_id=player_session.id,
@@ -187,10 +191,12 @@ def _athlete_observations(session: Session, upload_id: UUID) -> dict[UUID, list[
     rows = session.scalars(select(SourceAthleteRow.id).where(SourceAthleteRow.report_upload_id == upload_id)).all()
     grouped: dict[UUID, list[SourceMetricObservation]] = defaultdict(list)
     if rows:
-        for observation in session.scalars(
-            select(SourceMetricObservation).where(
-                SourceMetricObservation.athlete_row_id.in_(rows),
-                SourceMetricObservation.parser_version != "chart_review_v1",
+        for observation in effective_observations(
+            session.scalars(
+                select(SourceMetricObservation).where(
+                    SourceMetricObservation.athlete_row_id.in_(rows),
+                    SourceMetricObservation.parser_version != "chart_review_v1",
+                )
             )
         ):
             if observation.athlete_row_id is not None:

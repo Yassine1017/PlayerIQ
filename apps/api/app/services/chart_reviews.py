@@ -191,13 +191,19 @@ def confirm_chart_value(
 
 
 def sync_confirmed_chart_metrics(session: Session, linked: PlayerSession, parser_key: str | None) -> None:
+    """Apply the latest reviewed label, including a held value, on first linking."""
     for key in ("maximum_velocity_kmh", "player_load_reported"):
         confirmed = session.scalar(
-            select(ChartMetricReview).where(
+            select(ChartMetricReview)
+            .where(
                 ChartMetricReview.athlete_row_id == linked.source_athlete_row_id,
                 ChartMetricReview.metric_key == key,
-                ChartMetricReview.status == "confirmed",
+                ChartMetricReview.status.in_(["confirmed", "held"]),
             )
+            .order_by(
+                ChartMetricReview.reviewed_at.desc(), ChartMetricReview.created_at.desc(), ChartMetricReview.id.desc()
+            )
+            .limit(1)
         )
         if confirmed is not None:
             _sync_linked_metric(session, linked, confirmed, parser_key)

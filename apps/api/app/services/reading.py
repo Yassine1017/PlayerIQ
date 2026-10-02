@@ -19,6 +19,7 @@ from app.models.tables import (
     SourceAthleteRow,
     SourceMetricObservation,
 )
+from app.repositories.observations import effective_observations
 from app.schemas.v1 import (
     ActivityOut,
     CandidateRowOut,
@@ -127,10 +128,12 @@ def upload_status(session: Session, upload: ReportUpload) -> UploadStatusOut:
     links: dict[UUID, list[PlayerSession]] = defaultdict(list)
     row_ids = [row.id for row in rows]
     if row_ids:
-        for observation in session.scalars(
-            select(SourceMetricObservation)
-            .where(SourceMetricObservation.athlete_row_id.in_(row_ids))
-            .order_by(SourceMetricObservation.source_locator)
+        for observation in effective_observations(
+            session.scalars(
+                select(SourceMetricObservation)
+                .where(SourceMetricObservation.athlete_row_id.in_(row_ids))
+                .order_by(SourceMetricObservation.source_locator)
+            )
         ):
             if observation.athlete_row_id is not None:
                 observations[observation.athlete_row_id].append(observation)
