@@ -9,8 +9,10 @@ from sqlalchemy.exc import IntegrityError
 from app.api.analytics import _fact_out
 from app.api.errors import AppError
 from app.core.auth import CurrentUser, get_current_user
+from app.core.config import Settings, get_settings
 from app.db.session import Database, get_database
 from app.schemas.analytics import AnalyticsOverviewOut
+from app.schemas.team_imports import ImportResolution, TeamImportOut, TeamImportRequest
 from app.schemas.teams import (
     ApproveJoinRequest,
     AssignReportTeam,
@@ -45,6 +47,37 @@ from app.services.teams import (
 router = APIRouter(prefix="/v1", tags=["teams"])
 User = Annotated[CurrentUser, Depends(get_current_user)]
 DB = Annotated[Database, Depends(get_database)]
+
+
+@router.post("/report-uploads/{upload_id}/team-import", response_model=TeamImportOut, status_code=202)
+def request_team_import_route(upload_id: UUID, body: TeamImportRequest, user: User, database: DB) -> TeamImportOut:
+    from app.services.team_imports import request_import
+
+    with database.user_transaction(user.id) as session:
+        return request_import(session, user.id, upload_id, body)
+
+
+@router.get("/report-uploads/{upload_id}/team-import", response_model=TeamImportOut)
+def get_team_import_route(upload_id: UUID, user: User, database: DB) -> TeamImportOut:
+    from app.services.team_imports import import_out
+
+    with database.user_transaction(user.id) as session:
+        return import_out(session, user.id, upload_id)
+
+
+@router.post("/report-uploads/{upload_id}/team-import/rows/{row_id}/resolve", response_model=TeamImportOut)
+def resolve_team_import_route(
+    upload_id: UUID,
+    row_id: UUID,
+    body: ImportResolution,
+    user: User,
+    database: DB,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TeamImportOut:
+    from app.services.team_imports import resolve_row
+
+    with database.user_transaction(user.id) as session:
+        return resolve_row(session, user.id, upload_id, row_id, body, settings)
 
 
 @router.post("/teams", response_model=TeamOut, status_code=201)

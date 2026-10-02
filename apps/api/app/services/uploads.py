@@ -1,6 +1,7 @@
 """Authenticated, bounded PDF upload and durable job creation."""
 
 import logging
+from typing import Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy import insert
@@ -48,7 +49,11 @@ def create_upload(
     mime_type: str | None,
     content: bytes,
     team_id: UUID | None = None,
+    import_athletes: bool = False,
+    session_type: Literal["training", "match", "unknown"] = "unknown",
 ) -> ReportUpload:
+    if import_athletes and team_id is None:
+        raise AppError("team_required", "Select a team for automatic roster import", 422)
     display_filename = validate_pdf_upload(filename, mime_type, content, settings)
     digest = content_sha256(content)
     with database.user_transaction(actor_id) as session:
@@ -79,6 +84,16 @@ def create_upload(
             )
             session.add(upload)
             session.flush()
+            if import_athletes and team_id is not None:
+                from app.schemas.team_imports import TeamImportRequest
+                from app.services.team_imports import request_import
+
+                request_import(
+                    session,
+                    actor_id,
+                    upload.id,
+                    TeamImportRequest(team_id=team_id, confirm_share=True, session_type=session_type),
+                )
             # The API role can INSERT an owned job, but cannot SELECT jobs. An ORM
             # flush adds RETURNING for server defaults, which would require SELECT.
             session.execute(

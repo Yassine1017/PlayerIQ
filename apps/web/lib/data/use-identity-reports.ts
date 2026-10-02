@@ -18,7 +18,8 @@ export function canSelectSelf(row: CandidateRow, playerId: string) {
     row.quality_state === "ready" &&
     row.links.every(
       (link) =>
-        link.player_id === playerId && link.quality_state === "accepted",
+        (link.player_id === playerId || link.is_unclaimed === true) &&
+        link.quality_state === "accepted",
     )
   );
 }

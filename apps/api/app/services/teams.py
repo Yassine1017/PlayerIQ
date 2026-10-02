@@ -21,6 +21,7 @@ from app.models.tables import (
     TeamJoinRequest,
     TeamManagerGrant,
     TeamMembership,
+    TeamRoster,
 )
 from app.schemas.teams import (
     JoinRequestsOut,
@@ -39,6 +40,7 @@ from app.schemas.teams import (
     TeamsOut,
 )
 from app.services.authorization import require_team, require_team_admin, require_team_player, require_upload
+from app.services.transaction_locks import lock_resource
 
 
 def team_out(team: Team, membership: TeamMembership) -> TeamOut:
@@ -62,6 +64,9 @@ def create_team(session: Session, actor_id: UUID, name: str) -> TeamOut:
     session.add(membership)
     session.add(TeamManagerGrant(team_id=team.id, user_id=actor_id))
     session.flush()
+    from app.services.team_imports import ensure_roster
+
+    ensure_roster(session, actor_id, team.id, player.id)
     return team_out(team, membership)
 
 
@@ -154,15 +159,18 @@ def approve_join_request(session: Session, actor_id: UUID, team_id: UUID, reques
     request.decided_by_user_id = actor_id
     request.decided_at = datetime.now(UTC)
     session.flush()
+    if membership.player_id is not None:
+        from app.services.team_imports import ensure_roster
+
+        ensure_roster(session, actor_id, team_id, membership.player_id)
     return team_out(team, membership)
 
 
 def assign_report_team(session: Session, actor_id: UUID, upload_id: UUID, team_id: UUID) -> UUID:
+    lock_resource(session, "team-import", str(upload_id))
     upload = require_upload(session, actor_id, upload_id)
     require_team(session, actor_id, team_id, manager=True)
-    if upload.team_id is not None:
-        if upload.team_id == team_id:
-            return team_id
+    if upload.team_id is not None and upload.team_id != team_id:
         raise AppError("team_assignment_conflict", "Report is already assigned to another team", 409)
     linked = session.scalars(
         select(PlayerSession)
@@ -250,10 +258,9 @@ def team_dashboard(session: Session, actor_id: UUID, team_id: UUID) -> TeamDashb
     recent = _team_session_summaries(history, metrics)[:5]
     player_count = (
         session.scalar(
-            select(func.count(TeamMembership.user_id)).where(
-                TeamMembership.team_id == team_id,
-                TeamMembership.player_id.is_not(None),
-                TeamMembership.revoked_at.is_(None),
+            select(func.count(TeamRoster.player_id)).where(
+                TeamRoster.team_id == team_id,
+                TeamRoster.revoked_at.is_(None),
             )
         )
         or 0
@@ -304,19 +311,22 @@ def team_session_detail(session: Session, actor_id: UUID, team_id: UUID, report_
 def team_players(session: Session, actor_id: UUID, team_id: UUID) -> TeamPlayersOut:
     _, membership = require_team(session, actor_id, team_id)
     memberships = session.scalars(
-        select(TeamMembership)
+        select(TeamRoster)
         .where(
-            TeamMembership.team_id == team_id,
-            TeamMembership.player_id.is_not(None),
-            TeamMembership.revoked_at.is_(None),
+            TeamRoster.team_id == team_id,
+            TeamRoster.revoked_at.is_(None),
         )
-        .limit(100)
+        .order_by(TeamRoster.created_at, TeamRoster.player_id)
+        .limit(1001)
     ).all()
+    if len(memberships) > 1000:
+        raise AppError("roster_limit", "Team roster exceeds the supported limit", 422)
     if membership.role == "player":
         memberships = [item for item in memberships if item.player_id == membership.player_id]
     ids = [item.player_id for item in memberships if item.player_id is not None]
     players = session.scalars(select(Player).where(Player.id.in_(ids))).all() if ids else []
     names = {player.id: player.display_name for player in players}
+    claimed = {player.id: player.owner_user_id is not None for player in players}
     history = _accepted_sessions(session, team_id)
     metrics = _metrics_by_session(session, [item.id for item in history])
     latest: dict[UUID, PlayerSession] = {}
@@ -327,6 +337,8 @@ def team_players(session: Session, actor_id: UUID, team_id: UUID) -> TeamPlayers
             TeamPlayerOut(
                 id=player_id,
                 display_name=names.get(player_id, "Player"),
+                account_state="registered" if claimed.get(player_id) else "unclaimed",
+                participation_state="accepted_history" if player_id in latest else "no_accepted_activity",
                 latest_session_date=latest[player_id].local_date if player_id in latest else None,
                 latest_metrics=[
                     TeamMetricOut(metric_key=m.metric_key, value=str(m.value), unit=m.unit)

@@ -7,12 +7,14 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import UploadPage from "@/app/app/upload/page";
+import type { Team } from "@/lib/api/types";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   uploadPdf: vi.fn(),
   uploads: vi.fn(),
   refresh: vi.fn(),
+  teams: [] as Team[],
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("@/lib/auth/provider", () => ({
@@ -21,7 +23,7 @@ vi.mock("@/lib/auth/provider", () => ({
   }),
 }));
 vi.mock("@/components/layout/app-frame", () => ({
-  useApp: () => ({ teams: [] }),
+  useApp: () => ({ teams: mocks.teams }),
 }));
 vi.mock("@/lib/data/use-resource", () => ({
   useResource: () => ({
@@ -45,6 +47,7 @@ vi.mock("@/lib/data/use-resource", () => ({
   }),
 }));
 beforeEach(() => {
+  mocks.teams = [];
   mocks.push.mockReset();
   mocks.uploadPdf
     .mockReset()
@@ -76,4 +79,45 @@ it("rejects non-PDF selection before an upload request", () => {
   });
   expect(screen.getByRole("alert")).toHaveTextContent("Choose a PDF");
   expect(mocks.uploadPdf).not.toHaveBeenCalled();
+});
+it("makes whole-report team sharing explicit and sends the selected session type", async () => {
+  mocks.teams = [
+    {
+      id: "team-synthetic",
+      name: "Synthetic FC",
+      role: "admin",
+      player_id: "self",
+      created_at: "2026-01-01",
+    },
+  ];
+  render(<UploadPage />);
+  fireEvent.change(screen.getByLabelText(/Report workspace/), {
+    target: { value: "team-synthetic" },
+  });
+  expect(
+    screen.getByText(
+      /all its identifiable athletes, including nonparticipants/,
+    ),
+  ).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Team session type"), {
+    target: { value: "training" },
+  });
+  const file = new File(["%PDF"], "synthetic-team.pdf", {
+    type: "application/pdf",
+  });
+  fireEvent.change(screen.getByLabelText("Select GPS PDF"), {
+    target: { files: [file] },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: /Upload and import team athletes/ }),
+  );
+  await waitFor(() =>
+    expect(mocks.uploadPdf).toHaveBeenCalledWith(
+      file,
+      expect.any(Function),
+      "team-synthetic",
+      "training",
+    ),
+  );
+  expect(mocks.push).toHaveBeenCalledWith("/app/uploads/u2");
 });

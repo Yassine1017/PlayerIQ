@@ -46,7 +46,8 @@ export default function TeamPlayersPage() {
           )}
           {!players.data?.items.length ? (
             <EmptyState title="No linked player profiles yet">
-              Players appear after team membership is approved.
+              Import a GPS report into this team or approve a player account to
+              build the roster.
             </EmptyState>
           ) : (
             <div className="table-wrap">
@@ -54,6 +55,8 @@ export default function TeamPlayersPage() {
                 <thead>
                   <tr>
                     <th>Player</th>
+                    <th>Account</th>
+                    <th>Activity</th>
                     <th>Latest session</th>
                     <th>Distance</th>
                     <th>Maximum Velocity</th>
@@ -64,6 +67,16 @@ export default function TeamPlayersPage() {
                   {players.data.items.map((person) => (
                     <tr key={person.id}>
                       <td className="font-semibold">{person.display_name}</td>
+                      <td>
+                        {person.account_state === "unclaimed"
+                          ? "Unclaimed athlete"
+                          : "Registered player"}
+                      </td>
+                      <td>
+                        {person.latest_session_date
+                          ? "Accepted history"
+                          : "No accepted activity"}
+                      </td>
                       <td>{person.latest_session_date ?? "—"}</td>
                       {["total_distance_m", "maximum_velocity_kmh"].map(
                         (key) => {

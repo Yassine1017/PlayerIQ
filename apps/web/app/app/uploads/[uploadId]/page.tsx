@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ChartEditor } from "@/components/uploads/chart-editor";
+import { TeamImportPanel } from "@/components/uploads/team-import-panel";
 import { PlayerIdentitySelection } from "@/components/identity/player-identity-selection";
 import { useApp } from "@/components/layout/app-frame";
 import { ErrorState, Loading, EmptyState } from "@/components/ui/states";
@@ -79,6 +80,7 @@ export default function UploadReviewPage() {
   const [confirmIdentity, setConfirmIdentity] = useState(false);
   const [targetPlayerId, setTargetPlayerId] = useState<string | null>(null);
   const [teamToAssign, setTeamToAssign] = useState("");
+  const [importType, setImportType] = useState<SessionType>("unknown");
   const [linkError, setLinkError] = useState<string | null>(null);
   const [linkedSession, setLinkedSession] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
@@ -211,7 +213,7 @@ export default function UploadReviewPage() {
     setLinkBusy(true);
     setLinkError(null);
     try {
-      await api.assignReportTeam(uploadId, teamToAssign);
+      await api.requestTeamImport(uploadId, teamToAssign, importType);
       status.refresh();
     } catch (reason) {
       setLinkError(
@@ -339,9 +341,10 @@ export default function UploadReviewPage() {
                       Add this report to a team
                     </h3>
                     <p className="helper mt-1">
-                      Accepted linked player sessions will become visible in the
-                      selected team workspace. The PDF and review remain
-                      uploader-private.
+                      Confirming imports all identifiable athletes into the
+                      selected team, including nonparticipants. Eligible
+                      sessions are shared with the team. The PDF and review
+                      remain private to you.
                     </p>
                     <label className="field mt-3">
                       Team
@@ -360,13 +363,27 @@ export default function UploadReviewPage() {
                           ))}
                       </select>
                     </label>
+                    <label className="field mt-3">
+                      Team session type
+                      <select
+                        className="select"
+                        value={importType}
+                        onChange={(e) =>
+                          setImportType(e.target.value as SessionType)
+                        }
+                      >
+                        <option value="unknown">Unknown</option>
+                        <option value="training">Training</option>
+                        <option value="match">Match</option>
+                      </select>
+                    </label>
                     <button
                       type="button"
                       className="btn btn-quiet mt-3"
                       disabled={!teamToAssign || linkBusy}
                       onClick={() => void assignTeam()}
                     >
-                      Confirm team assignment
+                      Assign team and import all athletes
                     </button>
                   </div>
                 )
@@ -402,6 +419,17 @@ export default function UploadReviewPage() {
                 </div>
               )}
             </section>
+            {manager && reportTeamId && (
+              <TeamImportPanel
+                uploadId={uploadId}
+                teamId={reportTeamId}
+                players={teamPlayers.data?.items ?? []}
+                onChanged={() => {
+                  status.refresh();
+                  teamPlayers.refresh();
+                }}
+              />
+            )}
             {processing.has(status.data.status) && (
               <section className="card card-pad">
                 <Loading

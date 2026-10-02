@@ -9,7 +9,10 @@ from reportlab.pdfgen import canvas
 
 
 def make_synthetic_pdf(
-    date_label: str = "THURSDAY, MARCH 13, 2025", activity_id: str = "20250313120000", first_name: str = "ATHLETE1"
+    date_label: str = "THURSDAY, MARCH 13, 2025",
+    activity_id: str = "20250313120000",
+    first_name: str = "ATHLETE1",
+    athlete_count: int = 12,
 ) -> bytes:
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=(612, 792))
@@ -30,9 +33,10 @@ def make_synthetic_pdf(
         if page_number == 4:
             pdf.drawString(40, 740, "Athlete Breakdown")
             pdf.drawString(40, 720, "Distance (m) Overall (%)")
-            for ordinal in range(12):
-                top = 700 - ordinal * 40
-                pdf.rect(40, top - 37, 530, 37)
+            for ordinal in range(athlete_count):
+                height = min(40, 600 // athlete_count)
+                top = 700 - ordinal * height
+                pdf.rect(40, top - height + 3, 530, height - 3)
                 values = "0 0 0 0 0 0.00 0 0 0" if ordinal in (1, 5) else "3000 40 10 30 80 1.00 700 50 2"
                 if ordinal == 8:
                     values = "15000 63 1550 5000 453 1.81 1179 449 75"

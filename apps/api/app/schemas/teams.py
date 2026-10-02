@@ -88,6 +88,8 @@ class TeamSessionDetailOut(StrictModel):
 class TeamPlayerOut(StrictModel):
     id: UUID
     display_name: str
+    account_state: Literal["registered", "unclaimed"]
+    participation_state: Literal["accepted_history", "no_accepted_activity"]
     latest_session_date: date | None
     latest_metrics: list[TeamMetricOut]
 

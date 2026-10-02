@@ -13,6 +13,7 @@ from app.api.errors import AppError
 from app.models.tables import (
     ActivityReport,
     IngestionFinding,
+    Player,
     PlayerSession,
     ReportUpload,
     SessionMetricValue,
@@ -140,6 +141,21 @@ def upload_status(session: Session, upload: ReportUpload) -> UploadStatusOut:
         for link in session.scalars(select(PlayerSession).where(PlayerSession.source_athlete_row_id.in_(row_ids))):
             links[link.source_athlete_row_id].append(link)
     label_counts = Counter(normalize_source_label(row.source_name) for row in rows)
+    linked_ids = {link.player_id for values in links.values() for link in values}
+    unclaimed_ids = (
+        set(
+            session.scalars(
+                select(Player.id).where(
+                    Player.id.in_(linked_ids),
+                    Player.owner_user_id.is_(None),
+                    Player.origin_team_id == upload.team_id,
+                    Player.archived_at.is_(None),
+                )
+            ).all()
+        )
+        if linked_ids and upload.team_id is not None
+        else set()
+    )
     recognized_by_row = {row.id: recognized_identity(session, upload, report, row, label_counts) for row in rows}
     candidate_rows = [
         CandidateRowOut(
@@ -171,7 +187,12 @@ def upload_status(session: Session, upload: ReportUpload) -> UploadStatusOut:
             ],
             findings=[_finding_out(value) for value in findings if value.row_ordinal == row.row_ordinal],
             links=[
-                ExistingLinkOut(session_id=link.id, player_id=link.player_id, quality_state=link.quality_state)
+                ExistingLinkOut(
+                    session_id=link.id,
+                    player_id=link.player_id,
+                    quality_state=link.quality_state,
+                    is_unclaimed=link.player_id in unclaimed_ids,
+                )
                 for link in links[row.id]
             ],
             recognition_status=(

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.errors import AppError
-from app.models.tables import Player, PlayerCoach, ReportUpload, Team, TeamMembership
+from app.models.tables import Player, PlayerCoach, ReportUpload, Team, TeamMembership, TeamRoster
 
 
 def can_access_player(session: Session, actor_id: UUID, player: Player) -> bool:
@@ -71,7 +71,10 @@ def require_team_admin(session: Session, actor_id: UUID, team_id: UUID) -> Team:
     return team
 
 
-def require_team_player(session: Session, team_id: UUID, player_id: UUID) -> TeamMembership:
+def require_team_player(session: Session, team_id: UUID, player_id: UUID) -> TeamMembership | TeamRoster:
+    roster = session.get(TeamRoster, (team_id, player_id))
+    if roster is not None and roster.revoked_at is None:
+        return roster
     membership = session.scalar(
         select(TeamMembership).where(
             TeamMembership.team_id == team_id,

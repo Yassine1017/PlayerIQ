@@ -55,6 +55,14 @@ The worker records `automatic_chart_backfill_complete` and chart findings after 
 
 Accepted history is projected by the analytics repository, then calculated by pure `analytics_v1` domain functions, then orchestrated by a reusable service. A post-link correction changes the history fingerprint, marking previously saved AI analyses stale. The analytics HTTP routes expose overview, trend, and workload outliers. The Phase 5 read-only AI tools call the same service for latest-versus-five, personal record, hardest training session, last speed exceedance, change calculations, and accepted session facts; see [AI_ANALYST.md](AI_ANALYST.md).
 
+## Whole-report team roster import
+
+After explicit team upload/import authorization, the existing worker processes ingestion, ready team imports, then legacy chart backfill within the same bounded `--limit` pass. A new team upload needs at least two units. The worker reads import queue metadata only; accepted history is written through a restricted API transaction as the recorded uploader, with current team-manager authorization rechecked. No LLM is called.
+
+An import considers every extracted row (maximum 200), creates/reuses roster athletes separately from account membership, and uses the existing validator/linker for eligible canonical sessions. Identifiable zero-recorded or held rows join the roster without accepted activity. First unambiguous unmatched rows create unclaimed profiles with import provenance; confirmed scoped identities may be reused, while later unconfirmed name matches/duplicates/conflicts remain in review. Manual chart corrections, held readings and automatic/backfill observations remain authoritative under the existing rules.
+
+One report import is atomic, with per-row conflict savepoints, per-report/team locks, unique constraints, three bounded attempts and explicit failed-run retry. Source-row outcomes and canonical IDs are auditable; successful repeats do not duplicate work. Existing reports can be assigned/imported without replacing PDFs or already linked session IDs. [TEAM_IMPORTS.md](TEAM_IMPORTS.md) documents endpoints, counts, privacy, model changes and manual verification.
+
 ## Known limits
 
 Only the reviewed Activity Report adapter is implemented. Scanned PDFs, arbitrary GPS providers, CSV, OCR of other layouts/charts, manual resolution of anomalous readings, and deletion/retention workflows are later work. The OCR region and regular-column geometry are specific to this supported chart layout; unreadable or ambiguous labels remain for manual review. Source display names can contain PDF line-wrap artifacts and must never be used as account identity keys. Migration `0009_player_identity_teams` adds identity/team provenance and team scoping; it does not reprocess completed uploads or backfill identity mappings. All committed fixtures are synthetic.

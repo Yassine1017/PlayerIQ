@@ -6,7 +6,11 @@ This document describes the report structure supported by the Phase 1 adapter. I
 
 The supported input is a five-page, multi-athlete `ACTIVITY REPORT` PDF. Its first page carries an activity title, local header clock, total activity time, team label, and venue label. The fourth page has an athlete breakdown table. The fifth page has an `Averages` row at report scope. Other pages contain graphical summaries, including a period breakdown and athlete charts. The athlete table is selectable text; the graphical values are embedded images in the reviewed format.
 
-The PDF does not provide a stable athlete ID, athlete exposure duration, timezone, confirmed activity start time, or confirmed session type. An activity report can list several athletes, including rows with zero distance. A zero row does not prove absence or participation. PlayerIQ must never link a row to a player profile from the display name alone.
+The PDF does not provide a stable athlete ID, athlete exposure duration, timezone, confirmed activity start time, or confirmed session type. An activity report can list several athletes, including rows with zero distance. A zero row does not prove absence or participation. A source display name alone must never establish account ownership or merge existing histories. Authorized report-level team import may create separate unclaimed canonical athletes with explicit source provenance; later history reuse requires confirmed scoped evidence.
+
+## Roster import and canonical history
+
+Migration `0011_team_roster_import` separates roster athletes from registered account permissions. It adds nullable canonical player ownership with an origin team, a roster relation, import requests/outcomes, and immutable deliberate-association evidence. No GPS metrics or thresholds are invented. All extracted rows are considered (maximum 200 per import), including identifiable zero/held athletes who stay roster-only. Accepted sessions/metric observations use existing data types and normalization. Ambiguous labels remain unresolved, and unconfirmed later name matches do not merge history. Account association preserves session/observation IDs and uses the same analytics fingerprint. Exact schemas, grants, bounds and rules: [TEAM_IMPORTS.md](TEAM_IMPORTS.md).
 
 ## Metadata model
 

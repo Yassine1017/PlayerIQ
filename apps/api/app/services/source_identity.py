@@ -21,6 +21,7 @@ from app.models.tables import (
     ReportUpload,
     SourceAthleteRow,
     TeamMembership,
+    TeamRoster,
 )
 from app.schemas.v1 import LinkRequest
 from app.services.authorization import require_player, require_team, require_team_player, require_upload
@@ -82,6 +83,14 @@ def recognized_identity(
     if (
         upload.team_id is not None
         and session.scalar(
+            select(TeamRoster.player_id).where(
+                TeamRoster.team_id == upload.team_id,
+                TeamRoster.player_id == identity.player_id,
+                TeamRoster.revoked_at.is_(None),
+            )
+        )
+        is None
+        and session.scalar(
             select(TeamMembership.user_id).where(
                 TeamMembership.team_id == upload.team_id,
                 TeamMembership.player_id == identity.player_id,
@@ -105,6 +114,7 @@ def claim_self(
     settings: Settings,
 ) -> tuple[PlayerSourceIdentity, UUID]:
     require_player(session, actor_id, player_id, manage=True)
+    _resolve_imported_association(session, actor_id, upload_id, row_id, player_id, confirmed_source_label, settings)
     return _confirm_identity(
         session, actor_id, upload_id, row_id, player_id, confirmed_source_label, session_type, settings
     )
@@ -125,9 +135,35 @@ def confirm_team_player(
         raise AppError("team_required", "Assign the report to a team first", 409)
     require_team(session, actor_id, upload.team_id, manager=True)
     require_team_player(session, upload.team_id, player_id)
+    _resolve_imported_association(session, actor_id, upload_id, row_id, player_id, confirmed_source_label, settings)
     return _confirm_identity(
         session, actor_id, upload_id, row_id, player_id, confirmed_source_label, session_type, settings
     )
+
+
+def _resolve_imported_association(
+    session: Session,
+    actor_id: UUID,
+    upload_id: UUID,
+    row_id: UUID,
+    player_id: UUID,
+    label: str,
+    settings: Settings,
+) -> None:
+    from app.models.tables import TeamReportImportRow
+    from app.schemas.team_imports import ImportResolution
+    from app.services.team_imports import resolve_row
+
+    imported = session.get(TeamReportImportRow, row_id)
+    if imported is not None and imported.upload_id == upload_id:
+        resolve_row(
+            session,
+            actor_id,
+            upload_id,
+            row_id,
+            ImportResolution(player_id=player_id, confirmed_source_label=label, confirm_association=True),
+            settings,
+        )
 
 
 def _confirm_identity(

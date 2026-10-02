@@ -11,11 +11,13 @@ import { useResource } from "@/lib/data/use-resource";
 import { dateLabel } from "@/lib/format";
 import { validatePdf } from "@/lib/upload";
 import { useApp } from "@/components/layout/app-frame";
+import type { SessionType } from "@/lib/api/types";
 
 export default function UploadPage() {
   const { api } = useAuth();
   const { teams } = useApp();
   const [teamId, setTeamId] = useState("");
+  const [sessionType, setSessionType] = useState<SessionType>("unknown");
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -49,6 +51,7 @@ export default function UploadPage() {
         file,
         setProgress,
         teamId || undefined,
+        sessionType,
       );
       router.push(`/app/uploads/${result.upload_id}`);
     } catch (reason) {
@@ -64,8 +67,8 @@ export default function UploadPage() {
           <span className="eyebrow">Add to your history</span>
           <h1 className="page-title">Upload GPS report</h1>
           <p className="page-subtitle">
-            A reviewed PDF becomes a player session only after you select and
-            link the athlete row.
+            Import a whole report into your team, or upload privately to connect
+            your own athlete row.
           </p>
         </div>
       </div>
@@ -157,9 +160,25 @@ export default function UploadPage() {
                   ))}
               </select>
               <span className="helper">
-                The PDF and review stay private to you. Accepted linked sessions
-                can appear to team members.
+                Selecting a team and uploading authorizes automatic import of
+                all its identifiable athletes, including nonparticipants.
+                Eligible sessions are shared with the team. The PDF and review
+                stay private to you.
               </span>
+            </label>
+          )}
+          {teamId && (
+            <label className="field mt-4">
+              Team session type
+              <select
+                className="select"
+                value={sessionType}
+                onChange={(e) => setSessionType(e.target.value as SessionType)}
+              >
+                <option value="unknown">Unknown</option>
+                <option value="training">Training</option>
+                <option value="match">Match</option>
+              </select>
             </label>
           )}
           {progress !== null && (
@@ -187,7 +206,11 @@ export default function UploadPage() {
             type="button"
             onClick={() => void submit()}
           >
-            {busy ? "Uploading…" : "Upload and process report"}
+            {busy
+              ? "Uploading…"
+              : teamId
+                ? "Upload and import team athletes"
+                : "Upload and process report"}
             <ArrowRight size={15} />
           </button>
         </section>
@@ -205,12 +228,14 @@ export default function UploadPage() {
             {
               n: "02",
               title: "Review source rows",
-              text: "You inspect the athlete row and manually confirm chart-only labels.",
+              text: "Printed chart labels are extracted automatically. Uncertain values remain available for review.",
             },
             {
               n: "03",
-              title: "Explicitly link",
-              text: "Select your PlayerIQ profile and session type to create an accepted session.",
+              title: teamId ? "Import your team" : "Connect your identity",
+              text: teamId
+                ? "Identifiable athletes join the roster. Eligible sessions appear in the team workspace; conflicts stay in review."
+                : "Confirm your athlete row to add accepted data to your personal history.",
             },
           ].map((item) => (
             <div

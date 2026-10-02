@@ -151,4 +151,34 @@ describe("team workspace views", () => {
       screen.getByText(/available to team coaches and admins/i),
     ).toBeInTheDocument();
   });
+  it("keeps an unclaimed nonparticipant visible without invented activity", () => {
+    mocks.resources["team-players:team-1"] = {
+      items: [
+        {
+          id: "unclaimed",
+          display_name: "Synthetic Nonparticipant",
+          account_state: "unclaimed",
+          participation_state: "no_accepted_activity",
+          latest_session_date: null,
+          latest_metrics: [],
+        },
+      ],
+      limited_to_self: false,
+    };
+    render(<TeamPlayersPage />);
+    expect(screen.getByText("Synthetic Nonparticipant")).toBeInTheDocument();
+    expect(screen.getByText("Unclaimed athlete")).toBeInTheDocument();
+    expect(screen.getByText("No accepted activity")).toBeInTheDocument();
+    expect(screen.queryByText("0 m")).not.toBeInTheDocument();
+  });
+  it("offers report import for an empty roster", () => {
+    mocks.resources["team-players:team-1"] = {
+      items: [],
+      limited_to_self: false,
+    };
+    render(<TeamPlayersPage />);
+    expect(
+      screen.getByText(/Import a GPS report into this team/),
+    ).toBeInTheDocument();
+  });
 });

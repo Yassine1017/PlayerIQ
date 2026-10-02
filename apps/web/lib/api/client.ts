@@ -13,6 +13,7 @@ import type {
   SessionType,
   SourceIdentity,
   Team,
+  TeamImport,
   TeamJoinRequest,
   TeamPlayer,
   TeamParticipant,
@@ -182,6 +183,47 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify({ team_id: teamId, confirm_share: true }),
     });
+  }
+  teamImport(uploadId: string, signal?: AbortSignal) {
+    return this.request<TeamImport>(
+      `/v1/report-uploads/${uploadId}/team-import`,
+      { signal },
+    );
+  }
+  requestTeamImport(
+    uploadId: string,
+    teamId: string,
+    sessionType: SessionType,
+  ) {
+    return this.request<TeamImport>(
+      `/v1/report-uploads/${uploadId}/team-import`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          team_id: teamId,
+          confirm_share: true,
+          session_type: sessionType,
+        }),
+      },
+    );
+  }
+  resolveTeamImport(
+    uploadId: string,
+    rowId: string,
+    playerId: string | null,
+    label: string,
+  ) {
+    return this.request<TeamImport>(
+      `/v1/report-uploads/${uploadId}/team-import/rows/${rowId}/resolve`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          player_id: playerId,
+          confirmed_source_label: label,
+          confirm_association: true,
+        }),
+      },
+    );
   }
   teamDashboard(teamId: string, signal?: AbortSignal) {
     return this.request<{
@@ -404,6 +446,7 @@ export class ApiClient {
     file: File,
     onProgress: (percent: number) => void,
     teamId?: string,
+    sessionType: SessionType = "unknown",
   ): Promise<{ upload_id: string; status: string }> {
     return this.token().then(
       (accessToken) =>
@@ -468,7 +511,11 @@ export class ApiClient {
           };
           const form = new FormData();
           form.append("file", file);
-          if (teamId) form.append("team_id", teamId);
+          if (teamId) {
+            form.append("team_id", teamId);
+            form.append("import_athletes", "true");
+            form.append("session_type", sessionType);
+          }
           xhr.send(form);
         }),
     );

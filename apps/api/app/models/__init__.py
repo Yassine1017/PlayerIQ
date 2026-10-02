@@ -25,6 +25,10 @@ from app.models.tables import (
     TeamJoinRequest,
     TeamManagerGrant,
     TeamMembership,
+    TeamReportImport,
+    TeamReportImportRow,
+    TeamRoster,
+    TeamRosterResolution,
 )
 
 __all__ = [
@@ -52,4 +56,8 @@ __all__ = [
     "TeamJoinRequest",
     "TeamManagerGrant",
     "TeamMembership",
+    "TeamReportImport",
+    "TeamReportImportRow",
+    "TeamRoster",
+    "TeamRosterResolution",
 ]

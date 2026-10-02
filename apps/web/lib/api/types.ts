@@ -23,7 +23,7 @@ export interface Me {
 export interface Player {
   id: string;
   display_name: string;
-  owner_user_id: string;
+  owner_user_id: string | null;
   created_at: string;
 }
 export interface Finding {
@@ -51,7 +51,12 @@ export interface CandidateRow {
   metrics: SourceMetric[];
   missing_metrics: string[];
   findings: Finding[];
-  links: { session_id: string; player_id: string; quality_state: string }[];
+  links: {
+    session_id: string;
+    player_id: string;
+    quality_state: string;
+    is_unclaimed?: boolean;
+  }[];
   source_identity_id?: string | null;
   recognized_player_id?: string | null;
   recognition_status?: string;
@@ -120,6 +125,8 @@ export interface TeamParticipant {
 export interface TeamPlayer {
   id: string;
   display_name: string;
+  account_state: "registered" | "unclaimed";
+  participation_state: "accepted_history" | "no_accepted_activity";
   latest_session_date: string | null;
   latest_metrics: TeamMetric[];
 }
@@ -311,3 +318,29 @@ export const trendMetrics = [
   "maximum_velocity_kmh",
   "player_load_reported",
 ] as const;
+
+export interface TeamImportRow {
+  row_id: string;
+  row_ordinal: number;
+  source_name: string;
+  player_id: string | null;
+  session_id: string | null;
+  association_method: string;
+  outcome: string;
+  reason_code: string | null;
+  created_player: boolean;
+  created_session: boolean;
+  resolved_at: string | null;
+}
+export interface TeamImport {
+  upload_id: string;
+  team_id: string;
+  status: "queued" | "complete" | "needs_review" | "failed";
+  session_type: SessionType;
+  attempts: number;
+  error_code: string | null;
+  created_at: string;
+  finished_at: string | null;
+  counts: Record<string, number>;
+  rows: TeamImportRow[];
+}

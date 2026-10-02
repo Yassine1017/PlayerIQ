@@ -49,7 +49,9 @@ vi.mock("@/lib/data/use-resource", () => ({
       ? mocks.upload
       : key?.startsWith("upload-team-players:")
         ? { items: mocks.teamPlayers }
-        : { items: [] },
+        : key?.startsWith("team-import:")
+          ? null
+          : { items: [] },
     error: null,
     loading: false,
     refresh: mocks.refresh,
@@ -381,7 +383,9 @@ describe("uploader review flow", () => {
     expect(
       screen.getByText("Confirm this team player's row"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /I have checked this source row/ }),
+    );
     fireEvent.click(
       screen.getByRole("button", { name: /confirm team player link/i }),
     );

@@ -51,9 +51,14 @@ class Profile(Base, CreatedAt):
 
 class Player(Base, UuidId, CreatedAt):
     __tablename__ = "players"
-    __table_args__ = (UniqueConstraint("owner_user_id"),)
+    __table_args__ = (
+        UniqueConstraint("owner_user_id"),
+        CheckConstraint("owner_user_id IS NOT NULL OR origin_team_id IS NOT NULL", name="player_origin"),
+        Index("ix_players_origin_team", "origin_team_id"),
+    )
 
-    owner_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+    owner_user_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"))
+    origin_team_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"))
     display_name: Mapped[str] = mapped_column(String(160), nullable=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -120,6 +125,87 @@ class TeamManagerGrant(Base):
 
     team_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"), primary_key=True)
     user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), primary_key=True)
+
+
+class TeamRoster(Base, CreatedAt):
+    """Athletes, independent of account membership and login permissions."""
+
+    __tablename__ = "team_roster"
+    __table_args__ = (
+        Index("ix_team_roster_player", "player_id"),
+        Index(
+            "uq_team_roster_source",
+            "team_id",
+            "parser_key",
+            "normalized_label",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+    )
+    team_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"), primary_key=True)
+    player_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.players.id"), primary_key=True)
+    parser_key: Mapped[str | None] = mapped_column(String(100))
+    normalized_label: Mapped[str | None] = mapped_column(String(255))
+    source_row_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.source_athlete_rows.id")
+    )
+    added_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TeamReportImport(Base, CreatedAt):
+    __tablename__ = "team_report_imports"
+    __table_args__ = (
+        CheckConstraint("status IN ('queued','complete','needs_review','failed')", name="import_status"),
+        CheckConstraint("session_type IN ('training','match','unknown')", name="import_session_type"),
+        CheckConstraint("attempts >= 0 AND attempts <= 3", name="import_attempts"),
+        Index("ix_team_import_queue", "status", "created_at"),
+    )
+    upload_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.report_uploads.id"), primary_key=True
+    )
+    team_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"), nullable=False)
+    requested_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+    session_type: Mapped[str] = mapped_column(String(16), nullable=False, default="unknown")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TeamReportImportRow(Base):
+    __tablename__ = "team_report_import_rows"
+    __table_args__ = (Index("ix_team_import_rows_upload", "upload_id"),)
+    row_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.source_athlete_rows.id"), primary_key=True
+    )
+    upload_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.team_report_imports.upload_id"), nullable=False
+    )
+    player_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.players.id"))
+    session_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.player_sessions.id"))
+    association_method: Mapped[str] = mapped_column(String(32), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(80))
+    created_player: Mapped[bool] = mapped_column(nullable=False, default=False)
+    created_session: Mapped[bool] = mapped_column(nullable=False, default=False)
+    resolved_by_user_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TeamRosterResolution(Base, UuidId, CreatedAt):
+    """Immutable evidence authorizing an unclaimed-to-approved-player association."""
+
+    __tablename__ = "team_roster_resolutions"
+    __table_args__ = (UniqueConstraint("from_player_id"),)
+    team_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.teams.id"), nullable=False)
+    from_player_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.players.id"), nullable=False)
+    to_player_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("playeriq.players.id"), nullable=False)
+    source_row_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("playeriq.source_athlete_rows.id"), nullable=False
+    )
+    confirmed_by_user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
 
 
 class TeamJoinRequest(Base, UuidId, CreatedAt):

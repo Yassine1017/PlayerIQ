@@ -175,10 +175,23 @@ async def upload_report(
     file: Annotated[UploadFile, File()],
     settings: ConfiguredSettings,
     team_id: Annotated[UUID | None, Form()] = None,
+    import_athletes: Annotated[bool, Form()] = False,
+    session_type: Annotated[Literal["training", "match", "unknown"], Form()] = "unknown",
 ) -> UploadCreated:
     try:
         content = await file.read(settings.max_upload_bytes + 1)
-        upload = create_upload(database, storage, settings, user.id, file.filename, file.content_type, content, team_id)
+        upload = create_upload(
+            database,
+            storage,
+            settings,
+            user.id,
+            file.filename,
+            file.content_type,
+            content,
+            team_id,
+            import_athletes,
+            session_type,
+        )
         return UploadCreated(upload_id=upload.id, status=upload.status)
     finally:
         await file.close()

@@ -68,7 +68,7 @@ class PlayerCreate(StrictModel):
 class PlayerOut(StrictModel):
     id: UUID
     display_name: str
-    owner_user_id: UUID
+    owner_user_id: UUID | None
     created_at: datetime
 
 
@@ -118,6 +118,7 @@ class ExistingLinkOut(StrictModel):
     session_id: UUID
     player_id: UUID
     quality_state: str
+    is_unclaimed: bool = False
 
 
 class CandidateRowOut(StrictModel):

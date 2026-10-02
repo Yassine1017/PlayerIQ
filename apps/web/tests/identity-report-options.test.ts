@@ -24,6 +24,40 @@ const report: UploadStatus = {
   },
 };
 describe("safe report choices", () => {
+  it("allows deliberate self-confirmation for a server-marked unclaimed imported athlete", () => {
+    expect(
+      canSelectSelf(
+        {
+          ...row,
+          links: [
+            {
+              player_id: "unclaimed",
+              session_id: "s1",
+              quality_state: "accepted",
+              is_unclaimed: true,
+            },
+          ],
+        },
+        "p1",
+      ),
+    ).toBe(true);
+    expect(
+      canSelectSelf(
+        {
+          ...row,
+          links: [
+            {
+              player_id: "registered-other",
+              session_id: "s1",
+              quality_state: "accepted",
+              is_unclaimed: false,
+            },
+          ],
+        },
+        "p1",
+      ),
+    ).toBe(false);
+  });
   it("requires ready rows and rejects another player's existing link", () => {
     expect(
       canSelectSelf({ ...row, quality_state: "zero_recorded" }, "p1"),
