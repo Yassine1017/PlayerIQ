@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { useApp } from "@/components/layout/app-frame";
 import { TeamSessionCard } from "@/components/team/team-states";
+import { TeamAverageCard } from "@/components/team/team-average";
 import { ErrorState, Loading, EmptyState } from "@/components/ui/states";
 import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
@@ -191,25 +192,25 @@ export default function TeamDashboardPage() {
                     </strong>
                     <span className="helper">Latest session</span>
                   </div>
-                  <div className="card card-pad">
-                    <span className="eyebrow">Team players</span>
-                    <strong className="block mt-3 text-2xl">
-                      {dashboard.data.player_count ?? "—"}
-                    </strong>
-                    <span className="helper">
-                      {dashboard.data.player_count == null
-                        ? "Private to team managers"
-                        : "Active profiles"}
-                    </span>
-                  </div>
-                  <div className="card card-pad">
-                    <span className="eyebrow">Rule version</span>
-                    <strong className="block mt-3 text-lg">
-                      {dashboard.data.rule_version}
-                    </strong>
-                    <span className="helper">Deterministic metrics</span>
-                  </div>
+                  <TeamAverageCard
+                    title="Average distance"
+                    average={dashboard.data.latest_session?.average_distance}
+                    manager={team.role !== "player"}
+                    hasSession={!!dashboard.data.latest_session}
+                  />
+                  <TeamAverageCard
+                    title="Average Player Load"
+                    average={dashboard.data.latest_session?.average_player_load}
+                    manager={team.role !== "player"}
+                    hasSession={!!dashboard.data.latest_session}
+                  />
                 </div>
+                <p className="helper">
+                  {dashboard.data.player_count != null &&
+                    `${dashboard.data.player_count} active roster athletes · `}
+                  Latest activity averages ·{" "}
+                  <span>{dashboard.data.rule_version}</span>
+                </p>
                 <section>
                   <div className="card-head">
                     <h2 className="section-title">Recent team sessions</h2>
@@ -229,7 +230,7 @@ export default function TeamDashboardPage() {
                   ) : (
                     <EmptyState title="No accepted team sessions yet">
                       Assign an existing processed report to this team or upload
-                      a new team report, then link eligible athlete rows.
+                      a new team report and import its eligible athlete rows.
                     </EmptyState>
                   )}
                 </section>

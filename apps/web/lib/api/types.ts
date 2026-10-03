@@ -110,6 +110,20 @@ export interface TeamSession {
   participant_count: number;
   total_distance_m: string | null;
   session_type: string;
+  average_distance?: TeamAverage | null;
+  average_player_load?: TeamAverage | null;
+}
+export interface TeamAverage {
+  metric_key: string;
+  status: "ok" | "missing_metric" | "not_comparable";
+  value: string | null;
+  display_value: string | null;
+  unit: string;
+  sample_size: number;
+  session_ids: string[];
+  source_observation_ids: string[];
+  comparison_scope: "same_report";
+  rule_version: "analytics_v1";
 }
 export interface TeamMetric {
   metric_key: string;

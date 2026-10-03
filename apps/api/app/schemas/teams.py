@@ -55,12 +55,27 @@ class AssignReportTeam(StrictModel):
     confirm_share: Literal[True]
 
 
+class TeamAverageOut(StrictModel):
+    metric_key: str
+    status: Literal["ok", "missing_metric", "not_comparable"]
+    value: str | None
+    display_value: str | None
+    unit: str
+    sample_size: int
+    session_ids: list[UUID]
+    source_observation_ids: list[UUID]
+    comparison_scope: Literal["same_report"] = "same_report"
+    rule_version: Literal["analytics_v1"] = "analytics_v1"
+
+
 class TeamSessionOut(StrictModel):
     report_upload_id: UUID
     local_date: date
     participant_count: int
     total_distance_m: str | None
     session_type: str
+    average_distance: TeamAverageOut | None = None
+    average_player_load: TeamAverageOut | None = None
 
 
 class TeamSessionsOut(StrictModel):

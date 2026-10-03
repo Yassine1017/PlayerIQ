@@ -8,6 +8,10 @@ Phase 5.6 places **Connect your player identity** directly below the dashboard w
 
 Team creation requires migration `0010_team_creation_rls`, which corrects a recursive PostgreSQL INSERT policy using a private SECURITY INVOKER creator check. Existing RLS, restricted roles and uploader-only PDF access remain in force. See [AUTH.md](docs/AUTH.md) for the correction and rollback-only live regression.
 
+## Team activity averages
+
+Team coaches/admins see **Average distance** and **Average Player Load** for the latest activity and recent session cards, calculated by the backend from accepted canonical athlete values in the same report. Each shows its own contributing-player count. Missing/held metrics and roster-only nonparticipants are excluded; accepted printed zero is included. Player Load is a reported index with unknown units/formula, and this descriptive same-activity mean does not enable cross-report comparison. Player-role summaries omit the means. No migration is required; restart backend/frontend processes as needed to load the code.
+
 ## Automatic team roster import
 
 Choose an authorized team and session type on upload to import all identifiable athletes automatically. Nonparticipants remain roster-only; eligible sessions use the canonical validator, analytics and existing chart capture. Profiles without accounts are marked **Unclaimed athlete** and receive no Auth membership or login access. Confirmed team-scoped identities can be reused; unconfirmed same-name candidates and ambiguous rows require deliberate review before histories are joined.

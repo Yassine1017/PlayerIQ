@@ -5,6 +5,7 @@ import TeamSessionsPage from "@/app/app/team/sessions/page";
 import TeamSessionDetailPage from "@/app/app/team/sessions/[reportId]/page";
 import TeamPlayersPage from "@/app/app/team/players/page";
 import TeamReportsPage from "@/app/app/team/reports/page";
+import { TeamAverageCard } from "@/components/team/team-average";
 
 const mocks = vi.hoisted(() => ({
   team: null as null | {
@@ -67,6 +68,19 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+const mean = {
+  metric_key: "total_distance_m",
+  status: "ok" as const,
+  value: "3100",
+  display_value: "3100",
+  unit: "m",
+  sample_size: 2,
+  session_ids: ["s1", "s2"],
+  source_observation_ids: ["o1", "o2"],
+  comparison_scope: "same_report" as const,
+  rule_version: "analytics_v1" as const,
+};
+
 describe("team workspace views", () => {
   it("shows create and join paths when no team exists", () => {
     mocks.team = null;
@@ -84,8 +98,17 @@ describe("team workspace views", () => {
   it("shows accepted activity and rule version on the team dashboard", () => {
     mocks.resources["team-dashboard:team-1"] = {
       team: mocks.team,
-      latest_session: activity,
-      recent_sessions: [activity],
+      latest_session: {
+        ...activity,
+        average_distance: mean,
+        average_player_load: {
+          ...mean,
+          metric_key: "player_load_reported",
+          value: "410.5",
+          unit: "source units",
+        },
+      },
+      recent_sessions: [{ ...activity, average_distance: mean }],
       player_count: 2,
       rule_version: "analytics_v1",
     };
@@ -95,7 +118,13 @@ describe("team workspace views", () => {
       screen.getByRole("heading", { name: "Synthetic FC" }),
     ).toBeInTheDocument();
     expect(screen.getByText("analytics_v1")).toBeInTheDocument();
-    expect(screen.getByText("6,200 m combined distance")).toBeInTheDocument();
+    expect(screen.getByText("Average distance")).toBeInTheDocument();
+    expect(screen.getByText("Average Player Load")).toBeInTheDocument();
+    expect(screen.getByText("3,100 m")).toBeInTheDocument();
+    expect(screen.getByText("410.5")).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/2 accepted players with this metric/),
+    ).toHaveLength(2);
     expect(screen.queryByText("ATHLETE1")).not.toBeInTheDocument();
   });
   it("groups team sessions by report and offers a drilldown", () => {
@@ -170,6 +199,50 @@ describe("team workspace views", () => {
     expect(screen.getByText("Unclaimed athlete")).toBeInTheDocument();
     expect(screen.getByText("No accepted activity")).toBeInTheDocument();
     expect(screen.queryByText("0 m")).not.toBeInTheDocument();
+  });
+  it("keeps missing, zero and incompatible mean states distinct", () => {
+    const view = render(
+      <TeamAverageCard
+        title="Average distance"
+        average={{
+          ...mean,
+          status: "missing_metric",
+          value: null,
+          sample_size: 0,
+        }}
+        manager
+        hasSession
+      />,
+    );
+    expect(screen.getByText("No accepted metric values")).toBeInTheDocument();
+    expect(screen.queryByText("0 m")).not.toBeInTheDocument();
+    view.rerender(
+      <TeamAverageCard
+        title="Average distance"
+        average={{ ...mean, value: "0" }}
+        manager
+        hasSession
+      />,
+    );
+    expect(screen.getByText("0 m")).toBeInTheDocument();
+    view.rerender(
+      <TeamAverageCard
+        title="Average distance"
+        average={{ ...mean, status: "not_comparable", value: null }}
+        manager
+        hasSession
+      />,
+    );
+    expect(screen.getByText("Source definitions differ")).toBeInTheDocument();
+    view.rerender(
+      <TeamAverageCard
+        title="Average distance"
+        average={null}
+        manager={false}
+        hasSession
+      />,
+    );
+    expect(screen.getByText("Private to team managers")).toBeInTheDocument();
   });
   it("offers report import for an empty roster", () => {
     mocks.resources["team-players:team-1"] = {

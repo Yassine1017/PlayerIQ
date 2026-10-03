@@ -9,6 +9,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.analytics.domain import MetricValue, display_decimal
+from app.analytics.team import TeamMetricSample, same_report_average
 from app.api.errors import AppError
 from app.models.tables import (
     Player,
@@ -25,6 +27,7 @@ from app.models.tables import (
 )
 from app.schemas.teams import (
     JoinRequestsOut,
+    TeamAverageOut,
     TeamDashboardOut,
     TeamJoinRequestOut,
     TeamMetricOut,
@@ -221,7 +224,7 @@ def _metrics_by_session(session: Session, ids: list[UUID]) -> dict[UUID, list[Se
 
 
 def _team_session_summaries(
-    sessions: list[PlayerSession], metrics: dict[UUID, list[SessionMetricValue]]
+    sessions: list[PlayerSession], metrics: dict[UUID, list[SessionMetricValue]], *, include_averages: bool = False
 ) -> list[TeamSessionOut]:
     grouped: dict[UUID, list[PlayerSession]] = defaultdict(list)
     for item in sessions:
@@ -243,23 +246,70 @@ def _team_session_summaries(
                 participant_count=len({item.player_id for item in values}),
                 total_distance_m=str(sum(distances, Decimal(0))) if distances else None,
                 session_type=next(iter(types)) if len(types) == 1 else "mixed",
+                average_distance=_team_average(values, metrics, report_id, "total_distance_m")
+                if include_averages
+                else None,
+                average_player_load=_team_average(values, metrics, report_id, "player_load_reported")
+                if include_averages
+                else None,
             )
         )
     return sorted(summaries, key=lambda item: (item.local_date, item.report_upload_id), reverse=True)
 
 
+def _team_average(
+    sessions: list[PlayerSession],
+    metrics: dict[UUID, list[SessionMetricValue]],
+    report_id: UUID,
+    key: Literal["total_distance_m", "player_load_reported"],
+) -> TeamAverageOut:
+    samples = [
+        TeamMetricSample(
+            report_id=item.report_upload_id,
+            player_id=item.player_id,
+            session_id=item.id,
+            session_quality=item.quality_state,
+            metric=MetricValue(
+                key=metric.metric_key,
+                value=metric.value,
+                unit=metric.unit,
+                comparability_key=metric.comparability_key,
+                definition_id=metric.definition_id,
+                source_observation_id=metric.source_observation_id,
+                quality_state=metric.quality_state,
+            ),
+        )
+        for item in sessions
+        for metric in metrics.get(item.id, [])
+    ]
+    fact = same_report_average(samples, report_id, key)
+    return TeamAverageOut(
+        metric_key=key,
+        status=cast(Literal["ok", "missing_metric", "not_comparable"], fact.status),
+        value=str(fact.value) if fact.value is not None else None,
+        display_value=display_decimal(fact.value, fact.unit),
+        unit=cast(str, fact.unit),
+        sample_size=fact.sample_size,
+        session_ids=list(fact.session_ids),
+        source_observation_ids=list(fact.source_observation_ids),
+        rule_version=cast(Literal["analytics_v1"], fact.rule_version),
+    )
+
+
 def team_sessions(session: Session, actor_id: UUID, team_id: UUID, limit: int = 50) -> TeamSessionsOut:
-    require_team(session, actor_id, team_id)
+    _, membership = require_team(session, actor_id, team_id)
     history = _accepted_sessions(session, team_id)
     metrics = _metrics_by_session(session, [item.id for item in history])
-    return TeamSessionsOut(items=_team_session_summaries(history, metrics)[:limit])
+    return TeamSessionsOut(
+        items=_team_session_summaries(history, metrics, include_averages=membership.role in ("coach", "admin"))[:limit]
+    )
 
 
 def team_dashboard(session: Session, actor_id: UUID, team_id: UUID) -> TeamDashboardOut:
     team, membership = require_team(session, actor_id, team_id)
     history = _accepted_sessions(session, team_id)
     metrics = _metrics_by_session(session, [item.id for item in history])
-    recent = _team_session_summaries(history, metrics)[:5]
+    recent = _team_session_summaries(history, metrics, include_averages=membership.role in ("coach", "admin"))[:5]
     player_count = (
         session.scalar(
             select(func.count(TeamRoster.player_id)).where(
@@ -284,7 +334,7 @@ def team_session_detail(session: Session, actor_id: UUID, team_id: UUID, report_
     if not grouped:
         raise AppError("team_session_not_found", "Team session not found", 404)
     metrics = _metrics_by_session(session, [item.id for item in grouped])
-    summary = _team_session_summaries(grouped, metrics)[0]
+    summary = _team_session_summaries(grouped, metrics, include_averages=membership.role in ("coach", "admin"))[0]
     permitted = (
         grouped
         if membership.role in ("coach", "admin")

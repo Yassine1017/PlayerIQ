@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useApp } from "@/components/layout/app-frame";
 import { metricDisplay } from "@/lib/format";
+import type { TeamSession } from "@/lib/api/types";
 
 export function NoTeam() {
   const { teams, teamError, refreshTeams } = useApp();
@@ -34,17 +35,7 @@ export function NoTeam() {
   );
 }
 
-export function TeamSessionCard({
-  session,
-}: {
-  session: {
-    report_upload_id: string;
-    local_date: string;
-    participant_count: number;
-    total_distance_m: string | null;
-    session_type: string;
-  };
-}) {
+export function TeamSessionCard({ session }: { session: TeamSession }) {
   return (
     <Link
       href={`/app/team/sessions/${session.report_upload_id}`}
@@ -63,9 +54,37 @@ export function TeamSessionCard({
         <span className="text-emerald-700 text-sm font-bold">View →</span>
       </div>
       <div className="mt-4 border-t border-slate-100 pt-3 text-sm">
-        {session.total_distance_m == null
-          ? "Distance unavailable"
-          : `${metricDisplay(session.total_distance_m, "m")} combined distance`}
+        {session.average_distance ? (
+          <div className="space-y-2">
+            <p>
+              Average distance:{" "}
+              {session.average_distance.status === "ok"
+                ? metricDisplay(session.average_distance.value, "m")
+                : "—"}
+              <span className="helper block">
+                {session.average_distance.sample_size} accepted players with
+                distance
+              </span>
+            </p>
+            <p>
+              Average Player Load:{" "}
+              {session.average_player_load?.status === "ok"
+                ? metricDisplay(
+                    session.average_player_load.value,
+                    session.average_player_load.unit,
+                  )
+                : "—"}
+              <span className="helper block">
+                {session.average_player_load?.sample_size ?? 0} accepted players
+                · reported index, same activity
+              </span>
+            </p>
+          </div>
+        ) : session.total_distance_m == null ? (
+          "Distance unavailable"
+        ) : (
+          `${metricDisplay(session.total_distance_m, "m")} combined distance`
+        )}
       </div>
     </Link>
   );
