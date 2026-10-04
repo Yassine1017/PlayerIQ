@@ -5,6 +5,7 @@ import type {
   ChatThread,
   ChartReview,
   Me,
+  MyTeamComparison,
   Outliers,
   Overview,
   Page,
@@ -245,6 +246,12 @@ export class ApiClient {
       summary: TeamSession;
       participants: TeamParticipant[];
     }>(`/v1/teams/${teamId}/sessions/${reportId}`, { signal });
+  }
+  myTeamComparison(teamId: string, reportId: string, signal?: AbortSignal) {
+    return this.request<MyTeamComparison>(
+      `/v1/teams/${teamId}/sessions/${reportId}/my-comparison`,
+      { signal },
+    );
   }
   teamPlayers(teamId: string, signal?: AbortSignal) {
     return this.request<{ items: TeamPlayer[]; limited_to_self: boolean }>(

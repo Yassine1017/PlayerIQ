@@ -125,6 +125,40 @@ export interface TeamAverage {
   comparison_scope: "same_report";
   rule_version: "analytics_v1";
 }
+export interface PeerComparison {
+  metric_key:
+    | "total_distance_m"
+    | "reported_high_speed_distance_m"
+    | "maximum_velocity_kmh"
+    | "player_load_reported";
+  status:
+    | "ok"
+    | "no_player_association"
+    | "not_participating"
+    | "missing_metric"
+    | "insufficient_cohort"
+    | "not_comparable";
+  unit: string;
+  your_value: string | null;
+  your_display_value: string | null;
+  teammate_mean: string | null;
+  teammate_display_mean: string | null;
+  absolute_difference: string | null;
+  display_absolute_difference: string | null;
+  percentage_difference: string | null;
+  display_percentage_difference: string | null;
+  direction: "above" | "below" | "equal" | null;
+  teammate_sample_size: number;
+  minimum_teammates: 5;
+  comparison_scope: "same_report";
+  rule_version: "analytics_v1";
+}
+export interface MyTeamComparison {
+  report_upload_id: string;
+  status: "ok" | "no_player_association" | "not_participating";
+  metrics: PeerComparison[];
+  rule_version: "analytics_v1";
+}
 export interface TeamMetric {
   metric_key: string;
   value: string;

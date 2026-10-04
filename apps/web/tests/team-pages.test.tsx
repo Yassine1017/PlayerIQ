@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
     teamPlayers: vi.fn(),
     teamReports: vi.fn(),
     teamJoinRequests: vi.fn(),
+    myTeamComparison: vi.fn(),
   },
   refreshTeams: vi.fn(),
   selectTeam: vi.fn(),
@@ -82,6 +83,53 @@ const mean = {
 };
 
 describe("team workspace views", () => {
+  it("connects the dashboard and detail to the same self-bound comparison projection", () => {
+    mocks.team = { ...mocks.team!, role: "player", player_id: "p1" };
+    mocks.resources["team-dashboard:team-1"] = {
+      team: mocks.team,
+      latest_session: activity,
+      recent_sessions: [],
+      player_count: null,
+      rule_version: "analytics_v1",
+    };
+    mocks.resources["my-comparison:team-1:report-1"] = {
+      report_upload_id: "report-1",
+      status: "ok",
+      rule_version: "analytics_v1",
+      metrics: [
+        {
+          metric_key: "total_distance_m",
+          status: "ok",
+          unit: "m",
+          your_display_value: "3500",
+          teammate_display_mean: "3000",
+          display_absolute_difference: "+500",
+          display_percentage_difference: "+16.6667",
+          direction: "above",
+          teammate_sample_size: 5,
+          minimum_teammates: 5,
+        },
+      ],
+    };
+    const view = render(<TeamDashboardPage />);
+    expect(
+      screen.getByRole("heading", { name: "You versus teammates" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("3,500 m")).toBeInTheDocument();
+    expect(screen.queryByText("+500 m")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Open this activity/ }),
+    ).toHaveAttribute("href", "/app/team/sessions/report-1");
+    view.unmount();
+    mocks.resources["team-session:team-1:report-1"] = {
+      summary: activity,
+      participants: [],
+    };
+    render(<TeamSessionDetailPage />);
+    expect(screen.getByText("+500 m")).toBeInTheDocument();
+    expect(screen.getByText("+16.6667%")).toBeInTheDocument();
+    expect(screen.queryByText("Jordan Lee")).not.toBeInTheDocument();
+  });
   it("shows create and join paths when no team exists", () => {
     mocks.team = null;
     render(<TeamDashboardPage />);

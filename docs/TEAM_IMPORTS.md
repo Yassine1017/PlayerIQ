@@ -12,6 +12,8 @@ The PDF, source candidate rows, chart proposals and import row results remain up
 
 ## Data model
 
+After deliberate account association, that approved member may use the separate anonymous **You versus teammates** view for accepted imported sessions. At least five eligible other values are needed per metric; unclaimed athletes can contribute accepted canonical observations without acquiring account permissions. Roster-only zero/held rows do not contribute. Named teammates, PDFs and import results keep their existing restrictions. No import schema/worker/identity change is needed. See [TEAM_COMPARISONS.md](TEAM_COMPARISONS.md).
+
 Migration `0011_team_roster_import` follows `0010_team_creation_rls` without altering applied migrations.
 
 | Record | Purpose |

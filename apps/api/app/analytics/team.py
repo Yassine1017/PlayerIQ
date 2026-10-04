@@ -1,5 +1,6 @@
 """Pure descriptive team averages within one source report, never across reports."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Literal
@@ -15,6 +16,21 @@ class TeamMetricSample:
     session_id: UUID
     session_quality: str
     metric: MetricValue
+
+
+def compatible_report_metrics(metrics: Sequence[MetricValue], unit: str) -> bool:
+    """Matching source definitions are descriptive only within one report.
+
+    The caller must establish report scope; this never verifies unverified keys.
+    """
+    return bool(metrics) and all(
+        metric.value.is_finite()
+        and metric.value >= 0
+        and metric.unit == unit
+        and metric.definition_id == metrics[0].definition_id
+        and metric.comparability_key == metrics[0].comparability_key
+        for metric in metrics
+    )
 
 
 def same_report_average(
@@ -51,14 +67,7 @@ def same_report_average(
     if (
         len({s.player_id for s in values}) != len(values)
         or len({s.metric.source_observation_id for s in values}) != len(values)
-        or any(
-            not s.metric.value.is_finite()
-            or s.metric.value < 0
-            or s.metric.unit != unit
-            or s.metric.definition_id != first.definition_id
-            or s.metric.comparability_key != first.comparability_key
-            for s in values
-        )
+        or not compatible_report_metrics([s.metric for s in values], unit)
     ):
         return replace(base, status="not_comparable", note="Conflicting athlete values or source definitions")
     return replace(

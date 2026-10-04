@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.exc import IntegrityError
 
 from app.api.analytics import _fact_out
@@ -17,6 +17,7 @@ from app.schemas.teams import (
     ApproveJoinRequest,
     AssignReportTeam,
     JoinRequestsOut,
+    MyTeamComparisonOut,
     TeamCreate,
     TeamDashboardOut,
     TeamJoinRequestOut,
@@ -29,6 +30,7 @@ from app.schemas.teams import (
 )
 from app.services.analytics import AnalyticsService
 from app.services.authorization import require_team, require_team_player
+from app.services.team_comparison import my_team_comparison
 from app.services.teams import (
     approve_join_request,
     assign_report_team,
@@ -149,6 +151,18 @@ def team_sessions_route(
 def team_session_route(team_id: UUID, report_id: UUID, user: User, database: DB) -> TeamSessionDetailOut:
     with database.user_transaction(user.id) as session:
         return team_session_detail(session, user.id, team_id, report_id)
+
+
+@router.get("/teams/{team_id}/sessions/{report_id}/my-comparison", response_model=MyTeamComparisonOut)
+def my_comparison_route(
+    team_id: UUID, report_id: UUID, user: User, database: DB, request: Request, response: Response
+) -> MyTeamComparisonOut:
+    with database.user_transaction(user.id) as session:
+        require_team(session, user.id, team_id)
+        if request.query_params:
+            raise AppError("invalid_query", "This comparison accepts no filters or player parameters", 422)
+        response.headers["Cache-Control"] = "private, no-store"
+        return my_team_comparison(session, user.id, team_id, report_id)
 
 
 @router.get("/teams/{team_id}/players", response_model=TeamPlayersOut)

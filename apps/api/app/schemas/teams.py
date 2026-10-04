@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import Field, field_validator
 
+from app.analytics.team_comparison import ComparisonMetric, ComparisonStatus, Direction
 from app.schemas.v1 import StrictModel
 
 
@@ -65,6 +66,32 @@ class TeamAverageOut(StrictModel):
     session_ids: list[UUID]
     source_observation_ids: list[UUID]
     comparison_scope: Literal["same_report"] = "same_report"
+    rule_version: Literal["analytics_v1"] = "analytics_v1"
+
+
+class PeerComparisonOut(StrictModel):
+    metric_key: ComparisonMetric
+    status: ComparisonStatus
+    unit: str
+    your_value: str | None
+    your_display_value: str | None
+    teammate_mean: str | None
+    teammate_display_mean: str | None
+    absolute_difference: str | None
+    display_absolute_difference: str | None
+    percentage_difference: str | None
+    display_percentage_difference: str | None
+    direction: Direction | None
+    teammate_sample_size: int = Field(ge=0)
+    minimum_teammates: Literal[5] = 5
+    comparison_scope: Literal["same_report"] = "same_report"
+    rule_version: Literal["analytics_v1"] = "analytics_v1"
+
+
+class MyTeamComparisonOut(StrictModel):
+    report_upload_id: UUID
+    status: Literal["ok", "no_player_association", "not_participating"]
+    metrics: list[PeerComparisonOut]
     rule_version: Literal["analytics_v1"] = "analytics_v1"
 
 

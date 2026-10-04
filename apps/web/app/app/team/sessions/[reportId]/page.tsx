@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useCallback } from "react";
 import { useApp } from "@/components/layout/app-frame";
 import { NoTeam } from "@/components/team/team-states";
+import { MyTeamComparisonPanel } from "@/components/team/my-comparison";
 import { ErrorState, Loading } from "@/components/ui/states";
 import { metricLabels } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/provider";
@@ -133,6 +134,11 @@ export default function TeamSessionDetailPage() {
                 </p>
               )}
             </section>
+            <MyTeamComparisonPanel
+              key={`${team.id}:${reportId}`}
+              teamId={team.id}
+              reportId={reportId}
+            />
           </>
         )
       )}

@@ -1,7 +1,7 @@
 # PlayerIQ — V1 Product and Technical Specification
 
-- **Status:** Phases 1–5.6 and automatic team roster import are implemented. Deployment remains planned.
-- **Date:** 2026-10-02
+- **Status:** Phases 1–5.6, automatic team roster import and anonymous player-versus-teammates comparisons are implemented. Deployment remains planned.
+- **Date:** 2026-10-04
 - **Audience:** Product, frontend, backend, data, and AI developers.
 
 ## 1. Purpose and V1 boundary
@@ -156,6 +156,12 @@ Coach/admin team dashboard, session list and session detail responses include `a
 These are recomputed means of accepted athlete metrics, not the PDF's printed team-average row. Each metric has its own denominator: roster-only nonparticipants, held sessions/metrics and missing values are excluded; a printed zero accepted within an eligible session is included. No values yields `missing_metric`; conflicting units/definition keys, repeated athletes/evidence or invalid values yields `not_comparable`. Definitions may remain unverified only for this single-report descriptive calculation of the same reported metric. Player Load remains an index with unknown units/formula. No cross-report comparisons, rankings, personal trends, performance-improvement claims or AI tools change.
 
 ## 6. API contract
+
+### Anonymous own-versus-teammates comparisons
+
+Team Dashboard and Team Session Detail now call `GET /v1/teams/{team_id}/sessions/{report_id}/my-comparison`. A separate anonymous projection binds the subject to the verified account's active owned profile and explicit membership/roster association. It compares four accepted metrics (distance, source high-speed distance, maximum velocity, Player Load) with **other** accepted canonical athletes in the same report/type/unit/source definition. At least five eligible others per metric are required; smaller cohorts expose no mean, delta or percentage. Decimal calculations return signed absolute and percentage differences (percentage only with positive peer mean), counts, neutral direction and `analytics_v1`. Named peer data, IDs/evidence, fingerprints, filters and ranks are omitted; existing player self-only detail and manager means remain unchanged.
+
+Pure domain calculations, bounded repository, authorization service and HTTP serialization are separate. Same-report source compatibility reuses manager-average rules, without weakening longitudinal checks. Results are computed fresh and use private no-store HTTP responses. An internal future-cache fingerprint covers the whole projected peer cohort and subject association, chart/source corrections, quality, types and rules; personal AI fingerprints remain separate. Player Load stays same-report workload; neither workload increases nor peer speed differences establish personal improvement. No migration, broad grant, team AI tool or paid call is introduced. Threshold suppression reduces disclosure risk but does not guarantee anonymity. Full response/status/display-precision and manual verification contract: [TEAM_COMPARISONS.md](TEAM_COMPARISONS.md).
 
 Base path `/v1`; JSON responses except multipart upload and authorized raw-file download. Authenticated endpoints require `Authorization: Bearer <Supabase access JWT>`. Path `player_id` never implies permission. List endpoints use opaque cursors and capped `limit`; responses include `next_cursor`. Errors use `{ "error": { "code": "...", "message": "...", "request_id": "...", "details": {} } }` with safe, actionable messages. This table contains both implemented routes and future V1 targets; future routes are marked below.
 

@@ -8,6 +8,10 @@ Phase 5.6 places **Connect your player identity** directly below the dashboard w
 
 Team creation requires migration `0010_team_creation_rls`, which corrects a recursive PostgreSQL INSERT policy using a private SECURITY INVOKER creator check. Existing RLS, restricted roles and uploader-only PDF access remain in force. See [AUTH.md](docs/AUTH.md) for the correction and rollback-only live regression.
 
+## You versus teammates
+
+Team Dashboard and Team Session Detail show the signed-in player's accepted distance, high-speed distance, maximum velocity and Player Load against the mean of **other** accepted teammates from the same report/type. Each metric requires at least five eligible teammates; smaller cohorts suppress benchmarks and differences. The backend returns `analytics_v1` decimal-string facts, counts and neutral direction labels. No teammate names or evidence IDs are disclosed by the comparison endpoint. Existing manager means and self-only player tables remain unchanged. Results are fresh on request; use Refresh after chart corrections. No migration or AI call is required. Restart FastAPI if running without reload. See [TEAM_COMPARISONS.md](docs/TEAM_COMPARISONS.md) for rules, privacy limits and exact manual checks.
+
 ## Team activity averages
 
 Team coaches/admins see **Average distance** and **Average Player Load** for the latest activity and recent session cards, calculated by the backend from accepted canonical athlete values in the same report. Each shows its own contributing-player count. Missing/held metrics and roster-only nonparticipants are excluded; accepted printed zero is included. Player Load is a reported index with unknown units/formula, and this descriptive same-activity mean does not enable cross-report comparison. Player-role summaries omit the means. No migration is required; restart backend/frontend processes as needed to load the code.
@@ -112,6 +116,7 @@ All `/v1` routes require `Authorization: Bearer <Supabase access token>`:
 | `POST/GET /v1/teams/{id}/join-requests`, `POST /v1/teams/{id}/join-requests/{request_id}/approve` | Request membership and have the creator approve it. |
 | `POST /v1/report-uploads/{upload_id}/team` | Uploader/manager assignment of an existing eligible upload to a team. |
 | `GET /v1/teams/{id}/dashboard`, `GET /v1/teams/{id}/sessions`, `GET /v1/teams/{id}/sessions/{report_id}` | Accepted team summaries grouped by report provenance. |
+| `GET /v1/teams/{id}/sessions/{report_id}/my-comparison` | Server-bound own metrics versus anonymous same-report/type teammate means; five eligible others per metric, no cohort filters or peer evidence IDs. |
 | `GET /v1/teams/{id}/players`, `GET /v1/teams/{id}/players/{player_id}`, `GET /v1/teams/{id}/reports` | Authorized player directory, deterministic drill-down and sanitized manager report list. |
 | `GET /v1/report-uploads/{upload_id}/file` | Uploader-only private report download. |
 | `GET /v1/players/{player_id}/sessions` | Authorized, paginated accepted sessions. |

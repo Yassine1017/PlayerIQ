@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { useApp } from "@/components/layout/app-frame";
 import { TeamSessionCard } from "@/components/team/team-states";
 import { TeamAverageCard } from "@/components/team/team-average";
+import { MyTeamComparisonPanel } from "@/components/team/my-comparison";
 import { ErrorState, Loading, EmptyState } from "@/components/ui/states";
 import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
@@ -234,6 +235,14 @@ export default function TeamDashboardPage() {
                     </EmptyState>
                   )}
                 </section>
+                {dashboard.data.latest_session && (
+                  <MyTeamComparisonPanel
+                    key={`${team.id}:${dashboard.data.latest_session.report_upload_id}`}
+                    teamId={team.id}
+                    reportId={dashboard.data.latest_session.report_upload_id}
+                    compact
+                  />
+                )}
               </>
             )
           )}
