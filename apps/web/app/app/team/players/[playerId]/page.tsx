@@ -86,7 +86,7 @@ export default function TeamPlayerDetailPage() {
                   .map((fact, index) => (
                     <div
                       key={`${fact.kind}:${fact.metric_key}:${index}`}
-                      className="rounded-lg border border-slate-200 p-4"
+                      className="rounded-lg border border-line p-4"
                     >
                       <span className="helper">
                         {fact.kind.replaceAll("_", " ")} ·{" "}

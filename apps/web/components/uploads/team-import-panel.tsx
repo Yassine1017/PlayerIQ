@@ -219,7 +219,7 @@ export function TeamImportPanel({
         </>
       )}
       {selected && (
-        <div className="mt-4 rounded-lg border border-slate-200 p-4">
+        <div className="mt-4 rounded-lg border border-line p-4">
           <h3 className="section-title">
             Confirm athlete: {selected.source_name}
           </h3>

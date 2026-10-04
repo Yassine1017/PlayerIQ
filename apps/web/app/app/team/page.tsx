@@ -276,7 +276,7 @@ export default function TeamDashboardPage() {
                   {requests.data.items.map((item) => (
                     <div
                       key={item.id}
-                      className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3"
+                      className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3"
                     >
                       <span className="font-semibold text-sm">
                         {item.display_name}

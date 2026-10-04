@@ -165,7 +165,7 @@ export default function Dashboard() {
           ) : (
             <>
               <TrendChart fact={trend.data} />
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-xs text-muted">
                 <span>
                   {trend.data ? statusText(trend.data.status) : "Unavailable"} ·{" "}
                   {trend.data?.sample_size ?? 0} sessions
@@ -185,7 +185,7 @@ export default function Dashboard() {
                 Backed by accepted player history
               </p>
             </div>
-            <Trophy size={18} className="text-emerald-500" />
+            <Trophy size={18} className="text-accent-text" />
           </div>
           {overview.loading ? (
             <Loading />
@@ -273,12 +273,12 @@ export default function Dashboard() {
               <h2 className="section-title">Your next step</h2>
               <p className="section-subtitle">Keep your history current</p>
             </div>
-            <ClipboardCheck size={18} className="text-emerald-500" />
+            <ClipboardCheck size={18} className="text-accent-text" />
           </div>
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-5">
-            <UploadCloud className="text-emerald-600" size={25} />
+          <div className="rounded-xl border border-line bg-accent-soft p-5">
+            <UploadCloud className="text-accent-text" size={25} />
             <h3 className="mt-3 text-sm font-bold">Add a GPS report</h3>
-            <p className="text-xs leading-5 text-slate-600">
+            <p className="text-xs leading-5 text-muted">
               Upload a supported PDF, inspect the extracted athlete rows, then
               choose and link your own row. Review chart-only values when
               automatic extraction is uncertain.
@@ -287,10 +287,10 @@ export default function Dashboard() {
               Upload report <ArrowRight size={15} />
             </Link>
           </div>
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
-            <Sparkles className="text-sky-700" size={25} />
+          <div className="mt-4 rounded-xl border border-line bg-surface-muted p-5">
+            <Sparkles className="text-info-text" size={25} />
             <h3 className="mt-3 text-sm font-bold">Ask the AI Analyst</h3>
-            <p className="text-xs leading-5 text-slate-600">
+            <p className="text-xs leading-5 text-muted">
               Explore your accepted history with answers grounded in
               deterministic analytics. Opening the page does not start an AI
               request.

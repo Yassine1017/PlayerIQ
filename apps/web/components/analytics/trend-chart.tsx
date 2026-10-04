@@ -45,19 +45,19 @@ export function TrendChart({ fact }: { fact: AnalyticsFact | null }) {
             margin={{ top: 18, right: 12, bottom: 4, left: -16 }}
           >
             <CartesianGrid
-              stroke="#e9f0ef"
+              stroke="var(--chart-grid)"
               strokeDasharray="3 5"
               vertical={false}
             />
             <XAxis
               dataKey="dateLabel"
-              tick={{ fontSize: 10, fill: "#829aa0" }}
+              tick={{ fontSize: 10, fill: "var(--muted)" }}
               axisLine={false}
               tickLine={false}
               minTickGap={22}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "#829aa0" }}
+              tick={{ fontSize: 10, fill: "var(--muted)" }}
               axisLine={false}
               tickLine={false}
               width={52}
@@ -71,7 +71,7 @@ export function TrendChart({ fact }: { fact: AnalyticsFact | null }) {
                   <div className="card px-3 py-2 text-xs shadow-lg">
                     <strong>{point.dateLabel}</strong>
                     <div>{metricDisplay(point.value, fact.unit)}</div>
-                    <div className="capitalize text-slate-500">
+                    <div className="capitalize text-muted">
                       {point.session_type}
                     </div>
                   </div>
@@ -81,16 +81,25 @@ export function TrendChart({ fact }: { fact: AnalyticsFact | null }) {
             <Line
               type="monotone"
               dataKey="numericValue"
-              stroke="#0dbb82"
+              stroke="var(--chart-series)"
               strokeWidth={3}
-              dot={{ fill: "white", stroke: "#0dbb82", strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6 }}
+              dot={{
+                fill: "var(--surface)",
+                stroke: "var(--chart-series)",
+                strokeWidth: 2,
+                r: 4,
+              }}
+              activeDot={{
+                r: 6,
+                fill: "var(--chart-series)",
+                stroke: "var(--surface)",
+              }}
               isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <details className="mt-1 text-xs text-slate-500">
+      <details className="mt-1 text-xs text-muted">
         <summary className="cursor-pointer font-semibold">
           View accessible data table
         </summary>

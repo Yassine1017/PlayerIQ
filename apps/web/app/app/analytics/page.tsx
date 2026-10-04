@@ -170,7 +170,7 @@ export default function AnalyticsPage() {
               Filter accepted sessions by metric, date, and session type
             </p>
           </div>
-          <BarChart3 size={19} className="text-emerald-600" />
+          <BarChart3 size={19} className="text-accent-text" />
         </div>
         <form
           className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr_auto]"
@@ -231,7 +231,7 @@ export default function AnalyticsPage() {
             Apply
           </button>
         </form>
-        <div className="mt-5 border-t border-slate-100 pt-4">
+        <div className="mt-5 border-t border-line pt-4">
           {trend.error ? (
             <ErrorState message={trend.error.message} onRetry={trend.refresh} />
           ) : trend.loading ? (
@@ -257,7 +257,7 @@ export default function AnalyticsPage() {
                 )}
               </div>
               <TrendChart fact={t} />
-              <div className="mt-4 grid gap-2 border-t border-slate-100 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-5">
+              <div className="mt-4 grid gap-2 border-t border-line pt-4 text-xs sm:grid-cols-2 lg:grid-cols-5">
                 {[
                   {
                     label: "First value",

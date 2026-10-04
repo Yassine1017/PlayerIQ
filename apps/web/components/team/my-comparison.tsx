@@ -83,7 +83,7 @@ export function MyTeamComparisonPanel({
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {comparison.data.metrics.map((metric) => (
                 <article
-                  className="rounded-xl border border-slate-200 p-4 min-w-0"
+                  className="rounded-xl border border-line p-4 min-w-0"
                   key={metric.metric_key}
                   aria-label={metricLabels[metric.metric_key]}
                 >
@@ -129,7 +129,7 @@ export function MyTeamComparisonPanel({
                     )}
                   </dl>
                   {metric.status === "ok" && metric.direction ? (
-                    <p className="mt-3 text-sm text-slate-600">
+                    <p className="mt-3 text-sm text-muted">
                       {direction[metric.direction]}
                     </p>
                   ) : (

@@ -62,7 +62,7 @@ function chartValue(
   return (
     <div>
       <span>{value ?? "—"}</span>
-      <span className="block text-[10px] text-slate-500">{state}</span>
+      <span className="block text-[10px] text-muted">{state}</span>
     </div>
   );
 }
@@ -295,16 +295,16 @@ export default function UploadReviewPage() {
                   {fileBusy ? "Opening…" : "View private PDF"}
                 </button>
               </div>
-              <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+              <div className="grid gap-2 text-xs text-muted sm:grid-cols-3">
                 <div>
                   <span className="muted">Session date</span>
-                  <strong className="block text-slate-800">
+                  <strong className="block text-content">
                     {dateLabel(status.data.activity?.reported_local_datetime)}
                   </strong>
                 </div>
                 <div>
                   <span className="muted">Activity duration</span>
-                  <strong className="block text-slate-800">
+                  <strong className="block text-content">
                     {status.data.activity?.activity_total_time_s != null
                       ? `${status.data.activity.activity_total_time_s} seconds (report-level)`
                       : "Not reported"}
@@ -312,7 +312,7 @@ export default function UploadReviewPage() {
                 </div>
                 <div>
                   <span className="muted">Extracted rows</span>
-                  <strong className="block text-slate-800">
+                  <strong className="block text-content">
                     {status.data.candidate_rows.length}
                   </strong>
                 </div>
@@ -336,7 +336,7 @@ export default function UploadReviewPage() {
                 </p>
               ) : (
                 teams.some((t) => t.role !== "player") && (
-                  <div className="mt-4 rounded-lg border border-slate-200 p-4">
+                  <div className="mt-4 rounded-lg border border-line p-4">
                     <h3 className="font-bold text-sm">
                       Add this report to a team
                     </h3>
@@ -406,7 +406,7 @@ export default function UploadReviewPage() {
                   <iframe
                     title="Private GPS report preview"
                     src={fileUrl}
-                    className="h-[520px] w-full rounded-lg border border-slate-200"
+                    className="h-[520px] w-full rounded-lg border border-line"
                   />
                   <a
                     className="inline-link mt-2 inline-flex items-center gap-1"
@@ -536,7 +536,7 @@ export default function UploadReviewPage() {
                             <tr
                               key={item.id}
                               className={
-                                selected === item.id ? "!bg-emerald-50" : ""
+                                selected === item.id ? "!bg-accent-soft" : ""
                               }
                             >
                               <td>{item.row_ordinal}</td>
@@ -634,7 +634,7 @@ export default function UploadReviewPage() {
                             PDF.
                           </p>
                         </div>
-                        <ShieldCheck size={19} className="text-emerald-600" />
+                        <ShieldCheck size={19} className="text-accent-text" />
                       </div>
                       {reviews.error ? (
                         <ErrorState
@@ -737,7 +737,7 @@ export default function UploadReviewPage() {
                           </label>
                         </div>
                       )}
-                      <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 mt-4 text-sm">
+                      <div className="rounded-lg bg-surface-muted border border-line p-4 mt-4 text-sm">
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div>
                             <span className="helper">Source athlete label</span>
@@ -804,8 +804,8 @@ export default function UploadReviewPage() {
                         </div>
                       )}
                       {linkedSession ? (
-                        <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                          <div className="flex items-center gap-2 text-sm font-bold text-emerald-800">
+                        <div className="mt-5 rounded-lg border border-line bg-accent-soft p-4">
+                          <div className="flex items-center gap-2 text-sm font-bold text-accent-text">
                             <CheckCircle2 size={18} /> Session linked
                           </div>
                           <div className="mt-3 flex gap-2">
@@ -861,7 +861,7 @@ export default function UploadReviewPage() {
                       {status.data.findings.map((finding, index) => (
                         <li
                           key={`${finding.code}:${index}`}
-                          className="text-xs text-slate-600"
+                          className="text-xs text-muted"
                         >
                           <Status value={finding.severity} />
                           <span className="ml-2">{finding.message}</span>

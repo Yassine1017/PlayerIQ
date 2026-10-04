@@ -81,7 +81,7 @@ export default function UploadPage() {
                 Supported football GPS PDF layout · maximum 10 MB
               </p>
             </div>
-            <UploadCloud className="text-emerald-600" size={21} />
+            <UploadCloud className="text-accent-text" size={21} />
           </div>
           <div
             className={`upload-drop ${dragging ? "dragging" : ""}`}
@@ -97,11 +97,11 @@ export default function UploadPage() {
             }}
           >
             <div>
-              <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-accent-soft text-accent-text">
                 <UploadCloud size={25} />
               </div>
               <strong className="mt-3 block text-sm">Drag your PDF here</strong>
-              <div className="mt-1 text-xs text-slate-500">
+              <div className="mt-1 text-xs text-muted">
                 or select a file from your computer
               </div>
               <input
@@ -122,8 +122,8 @@ export default function UploadPage() {
             </div>
           </div>
           {file && (
-            <div className="mt-4 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <FileText size={19} className="text-emerald-600" />
+            <div className="mt-4 flex items-center gap-3 rounded-lg border border-line bg-surface-muted p-3">
+              <FileText size={19} className="text-accent-text" />
               <div className="min-w-0 flex-1">
                 <strong className="block truncate text-xs">{file.name}</strong>
                 <span className="small muted">
@@ -187,9 +187,9 @@ export default function UploadPage() {
                 <span>Uploading securely</span>
                 <span>{progress}%</span>
               </div>
-              <div className="h-2 rounded-full bg-slate-100">
+              <div className="h-2 rounded-full bg-surface-muted">
                 <div
-                  className="h-2 rounded-full bg-emerald-500"
+                  className="h-2 rounded-full bg-accent-soft0"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -238,16 +238,13 @@ export default function UploadPage() {
                 : "Confirm your athlete row to add accepted data to your personal history.",
             },
           ].map((item) => (
-            <div
-              className="flex gap-4 border-t border-slate-100 py-4"
-              key={item.n}
-            >
-              <span className="font-mono text-xs font-bold text-emerald-600">
+            <div className="flex gap-4 border-t border-line py-4" key={item.n}>
+              <span className="font-mono text-xs font-bold text-accent-text">
                 {item.n}
               </span>
               <div>
                 <strong className="text-xs">{item.title}</strong>
-                <p className="mt-1 mb-0 text-xs leading-5 text-slate-500">
+                <p className="mt-1 mb-0 text-xs leading-5 text-muted">
                   {item.text}
                 </p>
               </div>
@@ -263,7 +260,7 @@ export default function UploadPage() {
               Only reports uploaded by this account appear here
             </p>
           </div>
-          <FolderOpen size={18} className="text-slate-400" />
+          <FolderOpen size={18} className="text-muted" />
         </div>
         {uploads.loading ? (
           <Loading />

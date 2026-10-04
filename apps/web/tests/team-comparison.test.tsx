@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MyTeamComparisonPanel } from "@/components/team/my-comparison";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import type { MyTeamComparison, PeerComparison } from "@/lib/api/types";
 
 const mocks = vi.hoisted(() => ({ api: { myTeamComparison: vi.fn() } }));
@@ -45,7 +46,11 @@ afterEach(cleanup);
 
 describe("anonymous teammate comparison", () => {
   it("shows backend values, explicit self exclusion, count and signed differences", async () => {
-    render(<MyTeamComparisonPanel teamId="team-1" reportId="report-1" />);
+    render(
+      <ThemeProvider>
+        <MyTeamComparisonPanel teamId="team-1" reportId="report-1" />
+      </ThemeProvider>,
+    );
     expect(await screen.findByText("3,500 m")).toBeInTheDocument();
     expect(screen.getByText("3,000 m")).toBeInTheDocument();
     expect(screen.getByText("+500 m")).toBeInTheDocument();
@@ -126,7 +131,11 @@ describe("anonymous teammate comparison", () => {
         },
       ]),
     );
-    render(<MyTeamComparisonPanel teamId="team-1" reportId="report-1" />);
+    render(
+      <ThemeProvider>
+        <MyTeamComparisonPanel teamId="team-1" reportId="report-1" />
+      </ThemeProvider>,
+    );
     expect(
       await screen.findByText(/At least 5 eligible teammates are needed/),
     ).toBeInTheDocument();

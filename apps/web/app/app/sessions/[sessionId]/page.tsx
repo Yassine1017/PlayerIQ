@@ -98,7 +98,7 @@ export default function SessionDetail() {
                       Exact stored values and their reported units
                     </p>
                   </div>
-                  <CheckCircle2 size={19} className="text-emerald-600" />
+                  <CheckCircle2 size={19} className="text-accent-text" />
                 </div>
                 {session.metrics.length ? (
                   <div className="table-wrap">
@@ -143,7 +143,7 @@ export default function SessionDetail() {
                 <section className="card card-pad">
                   <div className="card-head">
                     <h2 className="section-title">Source & provenance</h2>
-                    <ShieldCheck size={18} className="text-emerald-600" />
+                    <ShieldCheck size={18} className="text-accent-text" />
                   </div>
                   <div className="key-value">
                     <span>Report reference</span>
@@ -165,14 +165,14 @@ export default function SessionDetail() {
                 <section className="card card-pad">
                   <div className="card-head">
                     <h2 className="section-title">Validation notes</h2>
-                    <FileClock size={18} className="text-blue-500" />
+                    <FileClock size={18} className="text-info-text" />
                   </div>
                   {session.warnings.length ? (
                     <ul className="grid gap-3">
                       {session.warnings.map((item, index) => (
                         <li
                           key={`${item.code}:${index}`}
-                          className="text-xs leading-5 text-slate-600"
+                          className="text-xs leading-5 text-muted"
                         >
                           <Status value={item.severity} />{" "}
                           <span className="ml-1">{item.message}</span>
@@ -254,7 +254,7 @@ function SessionAnalysis({
             An explanation of verified facts from this session and your history.
           </p>
         </div>
-        <Sparkles size={19} className="text-emerald-600" />
+        <Sparkles size={19} className="text-accent-text" />
       </div>
       {result && <AnswerCard result={result} />}
       {error && <ErrorState message={error} />}

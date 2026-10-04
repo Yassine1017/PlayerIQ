@@ -42,7 +42,7 @@ export default function SessionsPage() {
             <h2 className="section-title">Session history</h2>
             <p className="section-subtitle">20 sessions per page</p>
           </div>
-          <CalendarDays size={18} className="text-emerald-600" />
+          <CalendarDays size={18} className="text-accent-text" />
         </div>
         {sessions.error ? (
           <ErrorState

@@ -39,7 +39,7 @@ export function TeamSessionCard({ session }: { session: TeamSession }) {
   return (
     <Link
       href={`/app/team/sessions/${session.report_upload_id}`}
-      className="card card-pad block transition hover:border-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-500"
+      className="card card-pad block transition hover:border-accent-text focus-visible:outline-2 focus-visible:outline-accent-text"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -51,9 +51,9 @@ export function TeamSessionCard({ session }: { session: TeamSession }) {
             {session.participant_count === 1 ? "player" : "players"}
           </span>
         </div>
-        <span className="text-emerald-700 text-sm font-bold">View →</span>
+        <span className="text-accent-text text-sm font-bold">View →</span>
       </div>
-      <div className="mt-4 border-t border-slate-100 pt-3 text-sm">
+      <div className="mt-4 border-t border-line pt-3 text-sm">
         {session.average_distance ? (
           <div className="space-y-2">
             <p>

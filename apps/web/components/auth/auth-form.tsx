@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authConfigured, supabase } from "@/lib/auth/provider";
+import { ThemeControl } from "@/components/theme/theme-control";
 
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const router = useRouter();
@@ -58,6 +59,9 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       </div>
       <div className="auth-form-wrap">
         <div className="auth-form">
+          <div className="flex justify-end mb-6">
+            <ThemeControl />
+          </div>
           <span className="eyebrow">
             {signup ? "Create your account" : "Welcome back"}
           </span>
@@ -120,7 +124,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
               <ArrowRight size={16} />
             </button>
           </form>
-          <div className="mt-6 border-t border-slate-200 pt-5 text-center text-xs text-slate-500">
+          <div className="mt-6 border-t border-line pt-5 text-center text-xs text-muted">
             {signup ? "Already have an account?" : "New to PlayerIQ?"}{" "}
             <Link
               className="inline-link"
@@ -129,7 +133,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
               {signup ? "Sign in" : "Create account"}
             </Link>
           </div>
-          <div className="mt-9 flex items-center justify-center gap-2 text-[11px] text-slate-400">
+          <div className="mt-9 flex items-center justify-center gap-2 text-[11px] text-muted">
             <LockKeyhole size={13} /> Your account is protected by Supabase Auth
           </div>
         </div>

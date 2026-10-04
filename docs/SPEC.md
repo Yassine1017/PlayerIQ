@@ -262,6 +262,8 @@ The system instruction forbids medical/injury diagnoses and says workload outlie
 
 ## 9. Pages and UI
 
+The web client supports Light, Dark and System appearance, selected in the app/auth header controls. System is the default; an explicit browser-local appearance choice overrides OS changes and persists across navigation/reload when storage is available. Dark follows the Soft Graphite design through shared semantic tokens, including charts and status/empty/error states. A static document-head script resolves the palette before paint; no backend/auth/analytics changes are involved. Original PDF/chart evidence is unfiltered on its document canvas. Verified contrast pairs and implementation/manual-check details are recorded in [APPEARANCE.md](APPEARANCE.md).
+
 | Route / view | Main content and states |
 |---|---|
 | `/` | Redirects to the authenticated app; the guard sends signed-out visitors to sign-in. A public landing page remains future work. |

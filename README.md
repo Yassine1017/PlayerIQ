@@ -8,6 +8,10 @@ Phase 5.6 places **Connect your player identity** directly below the dashboard w
 
 Team creation requires migration `0010_team_creation_rls`, which corrects a recursive PostgreSQL INSERT policy using a private SECURITY INVOKER creator check. Existing RLS, restricted roles and uploader-only PDF access remain in force. See [AUTH.md](docs/AUTH.md) for the correction and rollback-only live regression.
 
+## Appearance
+
+PlayerIQ supports **Light, Dark and System** appearance through the header control, including mobile and authentication pages. Dark uses the selected Soft Graphite palette; the browser remembers only the appearance choice. Shared tokens cover charts, reviews, personal/team pages and AI evidence, with source PDFs unchanged. See [APPEARANCE.md](docs/APPEARANCE.md) for architecture, contrast checks and remaining manual verification.
+
 ## You versus teammates
 
 Team Dashboard and Team Session Detail show the signed-in player's accepted distance, high-speed distance, maximum velocity and Player Load against the mean of **other** accepted teammates from the same report/type. Each metric requires at least five eligible teammates; smaller cohorts suppress benchmarks and differences. The backend returns `analytics_v1` decimal-string facts, counts and neutral direction labels. No teammate names or evidence IDs are disclosed by the comparison endpoint. Existing manager means and self-only player tables remain unchanged. Results are fresh on request; use Refresh after chart corrections. No migration or AI call is required. Restart FastAPI if running without reload. See [TEAM_COMPARISONS.md](docs/TEAM_COMPARISONS.md) for rules, privacy limits and exact manual checks.

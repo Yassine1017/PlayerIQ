@@ -26,6 +26,7 @@ import {
 import type { Me, Player, Team } from "@/lib/api/types";
 import { useAuth, authConfigured } from "@/lib/auth/provider";
 import { ErrorState, Loading } from "@/components/ui/states";
+import { ThemeControl } from "@/components/theme/theme-control";
 
 interface AppContextValue {
   me: Me;
@@ -288,7 +289,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                 <strong className="block text-white">
                   {identity.me.profile.display_name}
                 </strong>
-                <span className="text-slate-400">PlayerIQ account</span>
+                <span className="text-sidebar-muted">PlayerIQ account</span>
               </span>
             </div>
             <Link
@@ -318,11 +319,14 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                 <Menu size={18} />
               </button>
               <span className="topbar-title">
-                Workspace <span className="mx-2 text-slate-300">/</span>{" "}
-                <strong className="text-slate-800">{title}</strong>
+                <span className="topbar-context">
+                  Workspace <span className="mx-2 text-muted">/</span>{" "}
+                </span>
+                <strong className="text-content">{title}</strong>
               </span>
             </div>
             <div className="topbar-right">
+              <ThemeControl />
               {pathname.startsWith("/app/team") && teams.length > 1 ? (
                 <label className="relative">
                   <span className="sr-only">Selected team</span>
@@ -406,6 +410,9 @@ function Onboarding({
   return (
     <div className="min-h-screen grid place-items-center p-5">
       <div className="card card-pad w-full max-w-lg">
+        <div className="flex justify-end mb-4">
+          <ThemeControl />
+        </div>
         <span className="eyebrow">Welcome to PlayerIQ</span>
         <h1 className="page-title mt-2">Set up your workspace</h1>
         <p className="page-subtitle mb-6">

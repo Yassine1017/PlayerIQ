@@ -122,11 +122,11 @@ function ChartField({
     }
   }
   return (
-    <div className="rounded-xl border border-slate-200 p-4">
+    <div className="rounded-xl border border-line p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
-            <FileSearch size={17} className="text-emerald-600" />
+            <FileSearch size={17} className="text-accent-text" />
             <h3 className="text-sm font-bold">{label}</h3>
           </div>
           <p className="helper mt-1">Page 2 · {unit}</p>
@@ -146,7 +146,7 @@ function ChartField({
         <div className="mt-4">
           <div className="text-2xl font-bold">
             {current.raw_label}{" "}
-            <span className="text-xs font-normal text-slate-500">{unit}</span>
+            <span className="text-xs font-normal text-muted">{unit}</span>
           </div>
           <div className="helper mt-1">
             Manually confirmed · {current.source_locator}
@@ -170,7 +170,7 @@ function ChartField({
         <div className="mt-4">
           <div className="text-2xl font-bold">
             {automatic.raw_value}{" "}
-            <span className="text-xs font-normal text-slate-500">{unit}</span>
+            <span className="text-xs font-normal text-muted">{unit}</span>
           </div>
           <div className="helper mt-1">
             {automatic.quality_state === "accepted"
@@ -197,13 +197,11 @@ function ChartField({
         <>
           {pending ? (
             <div className="mt-4">
-              <div className="rounded-lg bg-slate-50 p-3">
+              <div className="rounded-lg bg-surface-muted p-3">
                 <div className="small muted">Proposed printed label</div>
                 <div className="mt-1 text-xl font-bold">
                   {pending.raw_label}{" "}
-                  <span className="text-xs font-normal text-slate-500">
-                    {unit}
-                  </span>
+                  <span className="text-xs font-normal text-muted">{unit}</span>
                 </div>
                 <div className="helper mt-1">
                   {pending.source_locator} · {pending.capture_method}
@@ -276,7 +274,7 @@ function ChartField({
           {edit && (
             <button
               type="button"
-              className="ml-3 text-xs text-slate-500 underline"
+              className="ml-3 text-xs text-muted underline"
               onClick={() => setEdit(false)}
             >
               Cancel

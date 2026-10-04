@@ -80,7 +80,7 @@ export default function ProfilePage() {
         <section className="card card-pad">
           <div className="card-head">
             <h2 className="section-title">Your profile</h2>
-            <UserRound size={19} className="text-emerald-600" />
+            <UserRound size={19} className="text-accent-text" />
           </div>
           <form className="grid gap-4" onSubmit={(event) => void save(event)}>
             <label className="field">
@@ -123,7 +123,7 @@ export default function ProfilePage() {
         <section className="card card-pad">
           <div className="card-head">
             <h2 className="section-title">Player access</h2>
-            <ShieldCheck size={19} className="text-emerald-600" />
+            <ShieldCheck size={19} className="text-accent-text" />
           </div>
           <div className="key-value">
             <span>My player</span>
@@ -148,7 +148,7 @@ export default function ProfilePage() {
               row.
             </p>
           </div>
-          <ShieldCheck size={19} className="text-emerald-600" />
+          <ShieldCheck size={19} className="text-accent-text" />
         </div>
         {identities.loading ? (
           <Loading />
@@ -172,7 +172,7 @@ export default function ProfilePage() {
             {identities.data.items.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3"
+                className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3"
               >
                 <div>
                   <span className="status success">

@@ -188,7 +188,7 @@ export function PlayerIdentitySelection({
                     </p>
                   )}
                   {reason && (
-                    <p className="text-xs text-slate-600 mt-2">{reason}</p>
+                    <p className="text-xs text-muted mt-2">{reason}</p>
                   )}
                 </div>
                 <button
