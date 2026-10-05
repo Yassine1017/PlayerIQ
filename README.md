@@ -10,7 +10,11 @@ Team creation requires migration `0010_team_creation_rls`, which corrects a recu
 
 ## Appearance
 
-PlayerIQ supports **Light, Dark and System** appearance through the header control, including mobile and authentication pages. Dark uses the selected Soft Graphite palette; the browser remembers only the appearance choice. Shared tokens cover charts, reviews, personal/team pages and AI evidence, with source PDFs unchanged. See [APPEARANCE.md](docs/APPEARANCE.md) for architecture, contrast checks and remaining manual verification.
+PlayerIQ supports **Light, Dark and System** appearance through a compact sun/moon/monitor control in the header, including mobile and authentication pages. Open the icon's native menu to choose a preference. Dark uses the selected Soft Graphite palette; the browser remembers only the appearance choice. Shared tokens cover charts, reviews, personal/team pages and AI evidence, with source PDFs unchanged. See [APPEARANCE.md](docs/APPEARANCE.md) for architecture, contrast checks and remaining manual verification.
+
+## Operations
+
+[OPERATIONS.md](docs/OPERATIONS.md) covers paired database/private-Storage backup restoration, proposed retention periods, authorized deletion design, aggregate job monitoring and rollback. It distinguishes current controls from unconfigured hosting/alerts and unimplemented retention/deletion workflows. No backup, deletion, migration or deployment is performed by the runbook.
 
 ## You versus teammates
 

@@ -72,6 +72,8 @@ Only the API/worker can access the report bucket. Uploads pass through the API a
 
 ### Configuration and operations
 
+[OPERATIONS.md](OPERATIONS.md) defines backup/Storage restore, deletion and proposed retention policies, worker monitoring and release rollback. Its launch targets and monitors are not yet configured; retention/deletion remain unimplemented. Restore recovery must reconcile deleted data and AI usage/holds before reopening access.
+
 Secrets (`OPENAI_API_KEY`, database role passwords, Supabase server-side storage credential, invitation email provider key) are server-only environment variables in the backend host. Web environment variables are limited to the Supabase URL, publishable key, and public API origin. Separate dev/staging/prod projects and credentials. Pin dependencies and lockfiles. Use structured logs with `request_id`, `job_id`, `player_id`, and error code; never log JWTs, report text, OpenAI keys, or full chat content. Add health/readiness checks, migration deployment, database backups, upload retention/deletion policy, bounded retries, and basic alerting on job failures and AI error rate. Use rate limits and per-player upload/chat quotas.
 
 ## 3. Data model and schema

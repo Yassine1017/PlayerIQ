@@ -2,7 +2,7 @@
 
 ## Choosing a theme
 
-The Appearance select in the application header offers **Light**, **Dark** and **System** on desktop and mobile. It is also available on sign-in, sign-up and initial workspace setup. System is the default when no valid choice has been saved; operating-system changes update the palette only while System is selected. An explicit Light or Dark selection takes precedence.
+The compact Appearance control in the application header offers **Light**, **Dark** and **System** on desktop and mobile. A sun, moon or monitor icon shows the selected preference; click/tap it to open the native menu, or use the keyboard. Its accessible name is Appearance, the native select exposes the current value, and its hover title names that preference. The control occupies 40 × 40 px with a visible focus ring. It is also available on sign-in, sign-up and initial workspace setup. System is the default when no valid choice has been saved; operating-system changes update the palette only while System is selected. An explicit Light or Dark selection takes precedence.
 
 Only the string `light`, `dark` or `system` is stored under `playeriq.appearance.v1` in browser localStorage. It is an appearance preference for this browser/origin, shared across its tabs and independent of accounts; no account data or authentication changes are involved. Navigation and reload retain a successfully stored choice. If storage is blocked, theme selection still works for the current document and client navigation; a full reload falls back to System. Invalid stored strings also fall back to System.
 
@@ -39,6 +39,8 @@ Verified on 2026-10-04:
 - Backend, database, RLS, metric/AI rules and dependencies were unchanged. No migrations, development database writes or paid AI calls were made.
 
 Screenshots and temporary browser scripts remain outside the repository. Live authenticated E2E is pending; the checks above are mocked UI verification.
+
+Compact-control follow-up verified on 2026-10-05: the same 103 tests passed, together with Prettier, ESLint, TypeScript and production build. Isolated synthetic browser checks at desktop 1440 × 1000 and mobile 390 × 844 confirmed the 40 px control, visible keyboard focus, changing icons/menu choices, saved preference after reload, System following OS changes, explicit preference override and no page overflow. The checked team-session interaction produced no page errors or console warnings/errors. Native menu rendering on Firefox/Safari and live authenticated flows remain manual checks. The native menu was also opened by pointer to verify all three choices remain readable.
 
 ## Remaining manual checks
 

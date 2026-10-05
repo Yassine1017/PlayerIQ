@@ -1,6 +1,6 @@
 "use client";
 
-import { Monitor } from "lucide-react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { useId } from "react";
 import { useTheme } from "./theme-provider";
 import type { ThemePreference } from "@/lib/theme";
@@ -8,14 +8,23 @@ import type { ThemePreference } from "@/lib/theme";
 export function ThemeControl() {
   const id = useId();
   const { preference, setPreference } = useTheme();
+  const Icon =
+    preference === "light" ? Sun : preference === "dark" ? Moon : Monitor;
+  const label =
+    preference === "light"
+      ? "Light"
+      : preference === "dark"
+        ? "Dark"
+        : "System";
   return (
     <div className="theme-control">
-      <Monitor size={15} aria-hidden="true" />
+      <Icon size={17} aria-hidden="true" />
       <label className="sr-only" htmlFor={id}>
         Appearance
       </label>
       <select
         id={id}
+        title={`Appearance: ${label}`}
         value={preference}
         onChange={(event) =>
           setPreference(event.target.value as ThemePreference)
