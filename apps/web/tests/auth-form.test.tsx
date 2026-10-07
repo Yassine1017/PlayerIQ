@@ -54,7 +54,10 @@ it("signs in with Supabase and enters the authenticated workspace", async () => 
 it("shows authentication errors without entering the app", async () => {
   mocks.signInWithPassword.mockResolvedValue({
     data: { session: null },
-    error: { message: "Invalid credentials" },
+    error: {
+      code: "invalid_credentials",
+      message: "Do not show this arbitrary prose",
+    },
   });
   render(<AuthForm mode="sign-in" />);
   fireEvent.change(screen.getByLabelText("Email address"), {
@@ -65,7 +68,7 @@ it("shows authentication errors without entering the app", async () => {
   });
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Invalid credentials",
+    "Invalid email or password.",
   );
   expect(mocks.replace).not.toHaveBeenCalled();
 });

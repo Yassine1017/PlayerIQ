@@ -1,4 +1,7 @@
 "use client";
+
+import { metricLabels } from "@/lib/api/types";
+import { useLocale } from "@/components/localization/locale-provider";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
@@ -7,9 +10,11 @@ import { NoTeam } from "@/components/team/team-states";
 import { ErrorState, Loading } from "@/components/ui/states";
 import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
-import { factOf, metricDisplay, statusText } from "@/lib/format";
+import { factOf, metricDisplay, statusText, analysisKind } from "@/lib/format";
 
 export default function TeamPlayerDetailPage() {
+  const { tr, ui, locale } = useLocale();
+
   const { playerId } = useParams<{ playerId: string }>();
   const { api } = useAuth();
   const { team } = useApp();
@@ -30,11 +35,13 @@ export default function TeamPlayerDetailPage() {
       <div className="page-heading">
         <div>
           <Link href="/app/team/players" className="inline-link">
-            ← Players
+            {tr("← Players")}
           </Link>
-          <h1 className="page-title mt-3">Player performance</h1>
+          <h1 className="page-title mt-3">{tr("Player performance")}</h1>
           <p className="page-subtitle">
-            Deterministic analytics from this team’s accepted sessions only.
+            {tr(
+              "Deterministic analytics from this team’s accepted sessions only.",
+            )}
           </p>
         </div>
       </div>
@@ -43,10 +50,7 @@ export default function TeamPlayerDetailPage() {
       ) : overview.loading ? (
         <Loading />
       ) : overview.error ? (
-        <ErrorState
-          message={overview.error.message}
-          onRetry={overview.refresh}
-        />
+        <ErrorState message={overview.error} onRetry={overview.refresh} />
       ) : (
         overview.data && (
           <>
@@ -57,27 +61,33 @@ export default function TeamPlayerDetailPage() {
                   <div className="card card-pad" key={key}>
                     <span className="eyebrow">
                       {key === "maximum_velocity_kmh"
-                        ? "Maximum Velocity PB"
-                        : "Highest distance"}
+                        ? tr("Maximum Velocity PB")
+                        : tr("Highest distance")}
                     </span>
                     <strong className="block text-2xl mt-3">
-                      {fact?.value && fact.unit
-                        ? metricDisplay(fact.value, fact.unit)
-                        : "—"}
+                      <bdi dir="ltr">
+                        {fact?.value && fact.unit
+                          ? metricDisplay(fact.value, fact.unit, locale)
+                          : "—"}
+                      </bdi>
                     </strong>
                     <span className="helper">
-                      {fact ? statusText(fact.status) : "No compatible history"}
+                      {fact
+                        ? statusText(fact.status, locale)
+                        : tr("No compatible history")}
                     </span>
                   </div>
                 );
               })}
             </div>
             <section className="card card-pad">
-              <h2 className="section-title">Team-scoped analytics</h2>
+              <h2 className="section-title">{tr("Team-scoped analytics")}</h2>
               <p className="helper mt-3">
-                Rule {overview.data.rule_version}. Each value is computed by the
-                existing analytics service; missing or held metrics are
-                excluded.
+                {tr("Rule")}
+                <bdi dir="auto">{overview.data.rule_version}</bdi>
+                {tr(
+                  ". Each value is computed by the existing analytics service; missing or held metrics are excluded.",
+                )}
               </p>
               <div className="grid gap-3 mt-4 md:grid-cols-2">
                 {facts
@@ -89,15 +99,20 @@ export default function TeamPlayerDetailPage() {
                       className="rounded-lg border border-line p-4"
                     >
                       <span className="helper">
-                        {fact.kind.replaceAll("_", " ")} ·{" "}
-                        {fact.metric_key?.replaceAll("_", " ") ?? "Session"}
+                        {analysisKind(fact.kind, locale)} ·{" "}
+                        {ui(metricLabels[fact.metric_key ?? ""] ?? "Session")}
                       </span>
                       <strong className="block mt-2 text-lg">
-                        {fact.value && fact.unit
-                          ? metricDisplay(fact.value, fact.unit)
-                          : (fact.display_value ?? "—")}
+                        <bdi dir="ltr">
+                          {fact.value && fact.unit
+                            ? metricDisplay(fact.value, fact.unit, locale)
+                            : (fact.display_value ?? "—")}
+                        </bdi>
                       </strong>
-                      <span className="helper">n={fact.sample_size}</span>
+                      <span className="helper">
+                        {tr("n=")}
+                        {fact.sample_size}
+                      </span>
                     </div>
                   ))}
               </div>

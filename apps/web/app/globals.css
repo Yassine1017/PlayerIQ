@@ -261,7 +261,7 @@ a {
     background 0.15s,
     color 0.15s;
   width: 100%;
-  text-align: left;
+  text-align: start;
 }
 .nav-link:hover {
   background: var(--sidebar-hover);
@@ -270,7 +270,7 @@ a {
 .nav-link.active {
   background: var(--sidebar-active);
   color: var(--brand-accent);
-  box-shadow: inset 3px 0 var(--brand-accent);
+  box-shadow: inset var(--nav-edge, 3px) 0 var(--brand-accent);
 }
 .side-foot {
   margin-top: auto;
@@ -584,7 +584,7 @@ p {
   white-space: nowrap;
 }
 .data-table th {
-  text-align: left;
+  text-align: start;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.09em;
@@ -833,7 +833,7 @@ p {
 }
 .key-value strong {
   color: var(--ink);
-  text-align: right;
+  text-align: end;
 }
 .auth-layout {
   min-height: 100vh;
@@ -913,8 +913,8 @@ p {
   }
   .sidebar {
     position: fixed;
-    left: 0;
-    transform: translateX(-101%);
+    inset-inline-start: 0;
+    transform: translateX(var(--sidebar-hidden, -101%));
     width: 250px;
     transition: transform 0.2s;
   }
@@ -1026,7 +1026,7 @@ p {
   width: 100%;
   padding: 12px 10px;
   border-radius: 9px;
-  text-align: left;
+  text-align: start;
   color: var(--muted);
   font-size: 13px;
 }
@@ -1081,7 +1081,7 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 29px;
-  text-align: left;
+  text-align: start;
 }
 .analyst-suggestions button {
   display: flex;
@@ -1106,7 +1106,7 @@ p {
   padding: 28px;
 }
 .analyst-question {
-  margin-left: auto;
+  margin-inline-start: auto;
   max-width: min(80%, 600px);
   padding: 15px 19px;
   background: var(--accent-soft);
@@ -1204,7 +1204,7 @@ p {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-left: 7px;
+  margin-inline-start: 7px;
   vertical-align: middle;
 }
 .analyst-inline-fact {
@@ -1407,19 +1407,19 @@ p {
   .analyst-evidence,
   .analyst-sources,
   .analyst-method {
-    padding-left: 15px;
-    padding-right: 15px;
+    padding-inline-start: 15px;
+    padding-inline-end: 15px;
   }
   .analyst-limitations {
-    margin-left: 15px;
-    margin-right: 15px;
+    margin-inline-start: 15px;
+    margin-inline-end: 15px;
   }
 }
 
 .identity-onboarding {
   padding: 28px;
   border: 1px solid var(--line);
-  border-left: 5px solid var(--green-dark);
+  border-inline-start: 5px solid var(--green-dark);
   border-radius: 14px;
   background: var(--surface);
 }
@@ -1574,5 +1574,76 @@ p {
   }
   .identity-evidence {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Logical layout follows document direction; charts and evidence retain ordering. */
+.preference-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+:root[dir="rtl"] {
+  --nav-edge: -3px;
+  --sidebar-hidden: 101%;
+}
+[dir="rtl"] .directional-icon {
+  transform: scaleX(-1);
+}
+[dir="rtl"] .brand-tag,
+[dir="rtl"] .side-section,
+[dir="rtl"] .eyebrow {
+  letter-spacing: normal;
+}
+.brand {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.brand-tag {
+  direction: inherit;
+}
+bdi {
+  unicode-bidi: isolate;
+}
+input[type="email"],
+input[type="password"],
+input[type="date"],
+input[inputmode="decimal"] {
+  direction: ltr;
+  text-align: start;
+}
+@media (max-width: 640px) {
+  .topbar-right {
+    flex-shrink: 0;
+  }
+  .topbar {
+    gap: 10px;
+  }
+}
+/* Long localized labels wrap without widening the page. */
+.stack {
+  grid-template-columns: minmax(0, 1fr);
+}
+[dir="rtl"] body {
+  font-family: Tahoma, Arial, Helvetica, sans-serif;
+}
+[dir="rtl"] .brand-tag {
+  direction: rtl;
+}
+@media (max-width: 640px) {
+  .page-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .card-head {
+    flex-wrap: wrap;
+  }
+  .btn {
+    max-width: 100%;
+    white-space: normal;
+  }
+  .btn svg {
+    flex-shrink: 0;
   }
 }

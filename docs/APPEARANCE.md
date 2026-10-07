@@ -53,3 +53,7 @@ Using already available safe development accounts and synthetic data:
 5. Check Firefox/Safari and native mobile selects/date inputs. Chromium desktop/mobile emulation was verified; other browser/device rendering was not.
 
 Phase 6 remains future work.
+
+## Language integration
+
+The compact Language control is adjacent to Appearance on desktop/mobile, authentication and workspace setup. Both controls retain their 40 px size, semantic colors and focus style. Appearance labels/titles use the selected interface language; language and theme have independent preference keys. The head runs both static bootstraps with an explicit statement separator. RTL uses logical spacing/edges and flips directional navigation arrows only; chart series, chronology and source evidence remain intact. Narrow layouts wrap long translated headings and actions. See [LOCALIZATION.md](LOCALIZATION.md) for locale rendering, formatting and the current synthetic desktop/mobile checks.

@@ -129,7 +129,7 @@ describe("manual chart review", () => {
       screen.getByRole("button", { name: /confirm exact label/i }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Review conflict",
+      "Something went wrong. Please try again.",
     );
     expect(screen.getByText("31.2")).toBeInTheDocument();
   });

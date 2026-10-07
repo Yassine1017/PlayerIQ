@@ -1,3 +1,7 @@
+"use client";
+import { statusText } from "@/lib/format";
+
+import { useLocale } from "@/components/localization/locale-provider";
 import Link from "next/link";
 import type { PlayerSession } from "@/lib/api/types";
 import { dateLabel, metricDisplay, metricOf } from "@/lib/format";
@@ -5,11 +9,14 @@ import { EmptyState } from "@/components/ui/states";
 import { Status } from "@/components/ui/status";
 
 export function SessionTable({ sessions }: { sessions: PlayerSession[] }) {
+  const { tr, locale } = useLocale();
+
   if (!sessions.length)
     return (
-      <EmptyState title="No linked sessions yet">
-        Upload a report, review the athlete row, and link it to your player
-        profile.
+      <EmptyState title={tr("No linked sessions yet")}>
+        {tr(
+          "Upload a report, review the athlete row, and link it to your player profile.",
+        )}
       </EmptyState>
     );
   return (
@@ -17,39 +24,52 @@ export function SessionTable({ sessions }: { sessions: PlayerSession[] }) {
       <table className="data-table">
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th>Total distance</th>
-            <th>Maximum velocity</th>
-            <th>Player Load</th>
-            <th>Status</th>
+            <th>{tr("Date")}</th>
+            <th>{tr("Type")}</th>
+            <th>{tr("Total distance")}</th>
+            <th>{tr("Maximum velocity")}</th>
+            <th>{tr("Player Load")}</th>
+            <th>{tr("Status")}</th>
             <th>
-              <span className="sr-only">Action</span>
+              <span className="sr-only">{tr("Action")}</span>
             </th>
           </tr>
         </thead>
         <tbody>
           {sessions.map((session) => (
             <tr key={session.id}>
-              <td className="font-bold">{dateLabel(session.local_date)}</td>
-              <td className="capitalize">{session.session_type}</td>
-              <td>
-                {metricDisplay(
-                  metricOf(session, "total_distance_m")?.value,
-                  metricOf(session, "total_distance_m")?.unit,
-                )}
+              <td className="font-bold">
+                {dateLabel(session.local_date, locale)}
+              </td>
+              <td className="capitalize">
+                {statusText(session.session_type, locale)}
               </td>
               <td>
-                {metricDisplay(
-                  metricOf(session, "maximum_velocity_kmh")?.value,
-                  "km/h",
-                )}
+                <bdi dir="ltr">
+                  {metricDisplay(
+                    metricOf(session, "total_distance_m")?.value,
+                    metricOf(session, "total_distance_m")?.unit,
+                    locale,
+                  )}
+                </bdi>
               </td>
               <td>
-                {metricDisplay(
-                  metricOf(session, "player_load_reported")?.value,
-                  "source units",
-                )}
+                <bdi dir="ltr">
+                  {metricDisplay(
+                    metricOf(session, "maximum_velocity_kmh")?.value,
+                    "km/h",
+                    locale,
+                  )}
+                </bdi>
+              </td>
+              <td>
+                <bdi dir="ltr">
+                  {metricDisplay(
+                    metricOf(session, "player_load_reported")?.value,
+                    "source units",
+                    locale,
+                  )}
+                </bdi>
               </td>
               <td>
                 <Status value={session.quality_state} />
@@ -59,7 +79,7 @@ export function SessionTable({ sessions }: { sessions: PlayerSession[] }) {
                   href={`/app/sessions/${session.id}`}
                   className="inline-link"
                 >
-                  View →
+                  {tr("View →")}
                 </Link>
               </td>
             </tr>

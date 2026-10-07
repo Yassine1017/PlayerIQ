@@ -1,4 +1,6 @@
 "use client";
+import { statusText, dateLabel } from "@/lib/format";
+import { useLocale } from "@/components/localization/locale-provider";
 import { useCallback } from "react";
 import { useApp } from "@/components/layout/app-frame";
 import { NoTeam } from "@/components/team/team-states";
@@ -7,6 +9,8 @@ import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
 
 export default function TeamReportsPage() {
+  const { tr, locale } = useLocale();
+
   const { api } = useAuth();
   const { team } = useApp();
   const load = useCallback(
@@ -22,11 +26,12 @@ export default function TeamReportsPage() {
     <div className="stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Team workspace</span>
-          <h1 className="page-title">Team Reports</h1>
+          <span className="eyebrow">{tr("Team workspace")}</span>
+          <h1 className="page-title">{tr("Team Reports")}</h1>
           <p className="page-subtitle">
-            Processing summaries only. Each original PDF and its review remain
-            private to its uploader.
+            {tr(
+              "Processing summaries only. Each original PDF and its review remain private to its uploader.",
+            )}
           </p>
         </div>
       </div>
@@ -34,17 +39,19 @@ export default function TeamReportsPage() {
         <NoTeam />
       ) : team.role === "player" ? (
         <div className="info-box">
-          Report administration is available to team coaches and admins. Your
-          accepted sessions remain visible in My Sessions.
+          {tr(
+            "Report administration is available to team coaches and admins. Your accepted sessions remain visible in My Sessions.",
+          )}
         </div>
       ) : reports.loading ? (
         <Loading />
       ) : reports.error ? (
-        <ErrorState message={reports.error.message} onRetry={reports.refresh} />
+        <ErrorState message={reports.error} onRetry={reports.refresh} />
       ) : !reports.data?.items.length ? (
-        <EmptyState title="No team reports">
-          Upload a report with this team selected, or explicitly assign an older
-          processed report.
+        <EmptyState title={tr("No team reports")}>
+          {tr(
+            "Upload a report with this team selected, or explicitly assign an older processed report.",
+          )}
         </EmptyState>
       ) : (
         <section className="card card-pad">
@@ -52,16 +59,16 @@ export default function TeamReportsPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Uploaded</th>
-                  <th>Status</th>
-                  <th>Accepted players</th>
+                  <th>{tr("Uploaded")}</th>
+                  <th>{tr("Status")}</th>
+                  <th>{tr("Accepted players")}</th>
                 </tr>
               </thead>
               <tbody>
                 {reports.data.items.map((item) => (
                   <tr key={item.upload_id}>
-                    <td>{new Date(item.created_at).toLocaleDateString()}</td>
-                    <td>{item.status}</td>
+                    <td>{dateLabel(item.created_at, locale)}</td>
+                    <td>{statusText(item.status, locale)}</td>
                     <td>{item.accepted_player_count}</td>
                   </tr>
                 ))}
@@ -69,8 +76,9 @@ export default function TeamReportsPage() {
             </table>
           </div>
           <p className="helper mt-4">
-            Open your own uploads under My Reports to review their source rows
-            or private PDF.
+            {tr(
+              "Open your own uploads under My Reports to review their source rows or private PDF.",
+            )}
           </p>
         </section>
       )}

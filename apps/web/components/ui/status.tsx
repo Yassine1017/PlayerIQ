@@ -1,3 +1,5 @@
+"use client";
+import { useLocale } from "@/components/localization/locale-provider";
 import { statusText } from "@/lib/format";
 
 const good = new Set([
@@ -21,6 +23,8 @@ const warn = new Set([
 ]);
 const bad = new Set(["held", "rejected", "missing_metric", "high"]);
 export function Status({ value }: { value: string }) {
+  const { locale } = useLocale();
+
   const tone = good.has(value)
     ? "good"
     : warn.has(value)
@@ -30,5 +34,5 @@ export function Status({ value }: { value: string }) {
         : ["queued", "extracting", "validating", "received"].includes(value)
           ? "info"
           : "";
-  return <span className={`status ${tone}`}>{statusText(value)}</span>;
+  return <span className={`status ${tone}`}>{statusText(value, locale)}</span>;
 }

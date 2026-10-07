@@ -7,6 +7,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LocaleProvider } from "@/components/localization/locale-provider";
+import { setLocale } from "@/lib/i18n/locale";
 import { MyTeamComparisonPanel } from "@/components/team/my-comparison";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import type { MyTeamComparison, PeerComparison } from "@/lib/api/types";
@@ -196,7 +198,7 @@ describe("anonymous teammate comparison", () => {
       screen.getByText("Loading your teammate comparison…"),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText("Comparison unavailable"),
+      await screen.findByText("Something went wrong. Please try again."),
     ).toBeInTheDocument();
     mocks.api.myTeamComparison.mockResolvedValueOnce(data());
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
@@ -221,3 +223,29 @@ describe("anonymous teammate comparison", () => {
     ).toBeInTheDocument();
   });
 });
+
+it.each(["pt-BR", "ar"] as const)(
+  "localizes teammate comparisons and preserves backend facts in %s",
+  async (locale) => {
+    setLocale(locale);
+    render(
+      <LocaleProvider>
+        <MyTeamComparisonPanel teamId="team-1" reportId="report-1" />
+      </LocaleProvider>,
+    );
+    expect(
+      await screen.findByText(locale === "ar" ? "قيمتك" : "Seu valor"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(locale === "ar" ? "3,500 m" : "3.500 m"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(locale === "ar" ? "+16.6667%" : "+16,6667%"),
+    ).toBeInTheDocument();
+    expect(mocks.api.myTeamComparison).toHaveBeenCalledWith(
+      "team-1",
+      "report-1",
+      expect.any(AbortSignal),
+    );
+  },
+);

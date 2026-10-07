@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import { AlertTriangle, Check, FileSearch, Pencil } from "lucide-react";
 import { useState } from "react";
@@ -72,11 +73,13 @@ function ChartField({
   reviews: ChartReview[];
   onUpdate: () => void;
 }) {
+  const { tr, ui } = useLocale();
+
   const { api } = useAuth();
   const [raw, setRaw] = useState("");
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | Error | null>(null);
   const [edit, setEdit] = useState(false);
   const pending = reviews.find((item) => item.status === "proposed");
   const current = reviews.find(
@@ -97,9 +100,7 @@ function ChartField({
       setRaw("");
       onUpdate();
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Could not propose value",
-      );
+      setError(reason instanceof Error ? reason : "Could not propose value");
     } finally {
       setBusy(false);
     }
@@ -114,9 +115,7 @@ function ChartField({
       setEdit(false);
       onUpdate();
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Could not confirm value",
-      );
+      setError(reason instanceof Error ? reason : "Could not confirm value");
     } finally {
       setBusy(false);
     }
@@ -127,9 +126,12 @@ function ChartField({
         <div>
           <div className="flex items-center gap-2">
             <FileSearch size={17} className="text-accent-text" />
-            <h3 className="text-sm font-bold">{label}</h3>
+            <h3 className="text-sm font-bold">{ui(label)}</h3>
           </div>
-          <p className="helper mt-1">Page 2 · {unit}</p>
+          <p className="helper mt-1">
+            {tr("Page 2 ·")}
+            {unit}
+          </p>
         </div>
         {current ? (
           <Status value={current.status} />
@@ -141,20 +143,22 @@ function ChartField({
           <Status value="missing" />
         )}
       </div>
-      <p className="helper mt-3">{hint}</p>
+      <p className="helper mt-3">{ui(hint)}</p>
       {current && !edit && (
         <div className="mt-4">
           <div className="text-2xl font-bold">
-            {current.raw_label}{" "}
+            <bdi dir="auto">{current.raw_label}</bdi>{" "}
             <span className="text-xs font-normal text-muted">{unit}</span>
           </div>
           <div className="helper mt-1">
-            Manually confirmed · {current.source_locator}
+            {tr("Manually confirmed ·")}
+            <bdi dir="auto">{current.source_locator}</bdi>
           </div>
           {current.status === "held" && (
             <div className="error-box mt-3">
-              This value is held from analytics. Its original label is retained
-              for review.
+              {tr(
+                "This value is held from analytics. Its original label is retained for review.",
+              )}
             </div>
           )}
           <button
@@ -162,25 +166,26 @@ function ChartField({
             className="inline-link mt-3"
             onClick={() => setEdit(true)}
           >
-            <Pencil size={12} className="inline" /> Replace printed value
+            <Pencil size={12} className="inline" />{" "}
+            {tr("Replace printed value")}
           </button>
         </div>
       )}
       {!current && !pending && automatic && !edit && (
         <div className="mt-4">
           <div className="text-2xl font-bold">
-            {automatic.raw_value}{" "}
+            <bdi dir="auto">{automatic.raw_value}</bdi>{" "}
             <span className="text-xs font-normal text-muted">{unit}</span>
           </div>
           <div className="helper mt-1">
             {automatic.quality_state === "accepted"
-              ? "Automatically extracted"
-              : "Needs review"}{" "}
-            · {automatic.source_locator}
+              ? tr("Automatically extracted")
+              : tr("Needs review")}{" "}
+            · <bdi dir="auto">{automatic.source_locator}</bdi>
           </div>
           {automatic.quality_state !== "accepted" && (
             <div className="error-box mt-3">
-              This source label is held from analytics until reviewed.
+              {tr("This source label is held from analytics until reviewed.")}
             </div>
           )}
           <button
@@ -188,8 +193,8 @@ function ChartField({
             className="inline-link mt-3"
             onClick={() => setEdit(true)}
           >
-            <Pencil size={12} className="inline" /> Review or correct printed
-            value
+            <Pencil size={12} className="inline" />{" "}
+            {tr("Review or correct printed value")}
           </button>
         </div>
       )}
@@ -198,20 +203,24 @@ function ChartField({
           {pending ? (
             <div className="mt-4">
               <div className="rounded-lg bg-surface-muted p-3">
-                <div className="small muted">Proposed printed label</div>
+                <div className="small muted">
+                  {tr("Proposed printed label")}
+                </div>
                 <div className="mt-1 text-xl font-bold">
-                  {pending.raw_label}{" "}
+                  <bdi dir="auto">{pending.raw_label}</bdi>{" "}
                   <span className="text-xs font-normal text-muted">{unit}</span>
                 </div>
                 <div className="helper mt-1">
-                  {pending.source_locator} · {pending.capture_method}
+                  <bdi dir="auto">{pending.source_locator}</bdi> ·{" "}
+                  {pending.capture_method}
                 </div>
               </div>
               {suspicious && (
                 <div className="error-box mt-3 flex gap-2">
-                  <AlertTriangle size={17} className="shrink-0" /> This value
-                  appears unusually high and requires explicit review. It will
-                  remain held from analytics if confirmed.
+                  <AlertTriangle size={17} className="shrink-0" />{" "}
+                  {tr(
+                    "This value appears unusually high and requires explicit review. It will remain held from analytics if confirmed.",
+                  )}
                 </div>
               )}
               <label className="mt-3 flex items-start gap-2 text-xs leading-5">
@@ -222,8 +231,10 @@ function ChartField({
                   onChange={(event) => setChecked(event.target.checked)}
                 />
                 <span>
-                  I checked athlete row #{row.row_ordinal} and the exact printed
-                  value on page 2.
+                  {tr(
+                    "I checked athlete row #{row} and the exact printed value on page 2.",
+                    { row: row.row_ordinal },
+                  )}
                 </span>
               </label>
               <button
@@ -233,13 +244,13 @@ function ChartField({
                 disabled={!checked || busy}
               >
                 <Check size={15} />
-                {busy ? "Confirming…" : "Confirm exact label"}
+                {busy ? tr("Confirming…") : tr("Confirm exact label")}
               </button>
             </div>
           ) : (
             <div className="mt-4">
               <label className="field">
-                Printed numeric label
+                {tr("Printed numeric label")}
                 <input
                   className="input"
                   inputMode="decimal"
@@ -248,15 +259,17 @@ function ChartField({
                   onChange={(event) => setRaw(event.target.value)}
                   placeholder={
                     metricKey === "maximum_velocity_kmh"
-                      ? "e.g. 31.2"
-                      : "e.g. 687"
+                      ? tr("e.g. 31.2")
+                      : tr("e.g. 687")
                   }
                 />
               </label>
               {suspicious && (
                 <div className="error-box mt-3 flex gap-2">
-                  <AlertTriangle size={17} className="shrink-0" /> This value
-                  appears unusually high and requires explicit review.
+                  <AlertTriangle size={17} className="shrink-0" />{" "}
+                  {tr(
+                    "This value appears unusually high and requires explicit review.",
+                  )}
                 </div>
               )}
               <button
@@ -267,24 +280,24 @@ function ChartField({
                 }
                 onClick={() => void propose()}
               >
-                {busy ? "Saving…" : "Propose label for confirmation"}
+                {busy ? tr("Saving…") : tr("Propose label for confirmation")}
               </button>
             </div>
           )}
           {edit && (
             <button
               type="button"
-              className="ml-3 text-xs text-muted underline"
+              className="ms-3 text-xs text-muted underline"
               onClick={() => setEdit(false)}
             >
-              Cancel
+              {tr("Cancel")}
             </button>
           )}
         </>
       )}
       {error && (
         <div className="error-box mt-3" role="alert">
-          {error}
+          {ui(error)}
         </div>
       )}
     </div>

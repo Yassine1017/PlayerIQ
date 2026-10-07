@@ -119,7 +119,7 @@ describe("grounded metric presentation", () => {
       />,
     );
     fireEvent.click(screen.getByText("View accessible data table"));
-    expect(screen.getByRole("table")).toHaveTextContent("training");
+    expect(screen.getByRole("table")).toHaveTextContent("Training");
     expect(screen.getByRole("table")).toHaveTextContent("8,400 m");
   });
 });

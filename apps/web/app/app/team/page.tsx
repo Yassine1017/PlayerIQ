@@ -1,4 +1,6 @@
 "use client";
+import { statusText } from "@/lib/format";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
@@ -11,13 +13,15 @@ import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
 
 export default function TeamDashboardPage() {
+  const { tr, ui, locale } = useLocale();
+
   const { api } = useAuth();
   const { team, teams, teamError, refreshTeams, selectTeam } = useApp();
   const [name, setName] = useState("");
   const [joinId, setJoinId] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | Error>("");
   const load = useCallback(
     (signal: AbortSignal) =>
       team ? api.teamDashboard(team.id, signal) : Promise.resolve(null),
@@ -50,7 +54,7 @@ export default function TeamDashboardPage() {
         "Team created. Share its ID with invited members so they can request access.",
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create team");
+      setError(e instanceof Error ? e : "Could not create team");
     } finally {
       setBusy(false);
     }
@@ -65,7 +69,7 @@ export default function TeamDashboardPage() {
       );
       setJoinId("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not request access");
+      setError(e instanceof Error ? e : "Could not request access");
     } finally {
       setBusy(false);
     }
@@ -78,7 +82,7 @@ export default function TeamDashboardPage() {
       requests.refresh();
       dashboard.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not approve request");
+      setError(e instanceof Error ? e : "Could not approve request");
     } finally {
       setBusy(false);
     }
@@ -87,40 +91,47 @@ export default function TeamDashboardPage() {
     <div className="stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Team workspace</span>
-          <h1 className="page-title">{team ? team.name : "Team Dashboard"}</h1>
+          <span className="eyebrow">{tr("Team workspace")}</span>
+          <h1 className="page-title">
+            {team ? team.name : tr("Team Dashboard")}
+          </h1>
           <p className="page-subtitle">
-            Accepted team sessions are grouped by source report. Private report
-            review stays with the uploader.
+            {tr(
+              "Accepted team sessions are grouped by source report. Private report review stays with the uploader.",
+            )}
           </p>
         </div>
-        {team && <span className="status info capitalize">{team.role}</span>}
+        {team && (
+          <span className="status info capitalize">
+            {statusText(team.role, locale)}
+          </span>
+        )}
       </div>
       {error && (
         <div className="error-box" role="alert">
-          {error}
+          {ui(error)}
         </div>
       )}
       {message && (
         <div className="info-box" role="status">
-          {message}
+          {ui(message)}
         </div>
       )}
       {teamError && (
         <ErrorState
-          message={teamError}
+          message={ui(teamError)}
           onRetry={() => void refreshTeams().catch(() => undefined)}
         />
       )}
       {!team && !teamError ? (
         <div className="grid-2">
           <section className="card card-pad">
-            <h2 className="section-title">Create a team</h2>
+            <h2 className="section-title">{tr("Create a team")}</h2>
             <p className="section-subtitle mb-4">
-              Start a workspace for accepted player sessions.
+              {tr("Start a workspace for accepted player sessions.")}
             </p>
             <label className="field">
-              Team name
+              {tr("Team name")}
               <input
                 className="input"
                 value={name}
@@ -134,21 +145,21 @@ export default function TeamDashboardPage() {
               disabled={busy || name.trim().length < 2}
               onClick={() => void create()}
             >
-              Create team
+              {tr("Create team")}
             </button>
           </section>
           <section className="card card-pad">
-            <h2 className="section-title">Join a team</h2>
+            <h2 className="section-title">{tr("Join a team")}</h2>
             <p className="section-subtitle mb-4">
-              Ask a team admin for the team ID, then request membership.
+              {tr("Ask a team admin for the team ID, then request membership.")}
             </p>
             <label className="field">
-              Team ID
+              {tr("Team ID")}
               <input
                 className="input"
                 value={joinId}
                 onChange={(e) => setJoinId(e.target.value)}
-                placeholder="Team UUID"
+                placeholder={tr("Team UUID")}
               />
             </label>
             <button
@@ -157,7 +168,7 @@ export default function TeamDashboardPage() {
               disabled={busy || !joinId.trim()}
               onClick={() => void join()}
             >
-              Request to join
+              {tr("Request to join")}
             </button>
           </section>
         </div>
@@ -165,42 +176,41 @@ export default function TeamDashboardPage() {
         <>
           {teams.length > 1 && (
             <p className="helper">
-              Switch team using the selector in the top bar.
+              {tr("Switch team using the selector in the top bar.")}
             </p>
           )}
           {dashboard.loading ? (
-            <Loading label="Loading accepted team history…" />
+            <Loading label={tr("Loading accepted team history…")} />
           ) : dashboard.error ? (
-            <ErrorState
-              message={dashboard.error.message}
-              onRetry={dashboard.refresh}
-            />
+            <ErrorState message={dashboard.error} onRetry={dashboard.refresh} />
           ) : (
             dashboard.data && (
               <>
                 <div className="metric-grid">
                   <div className="card card-pad">
-                    <span className="eyebrow">Latest activity</span>
+                    <span className="eyebrow">{tr("Latest activity")}</span>
                     <strong className="block mt-3 text-2xl">
                       {dashboard.data.latest_session?.local_date ?? "—"}
                     </strong>
-                    <span className="helper">Accepted team session</span>
+                    <span className="helper">
+                      {tr("Accepted team session")}
+                    </span>
                   </div>
                   <div className="card card-pad">
-                    <span className="eyebrow">Participants</span>
+                    <span className="eyebrow">{tr("Participants")}</span>
                     <strong className="block mt-3 text-2xl">
                       {dashboard.data.latest_session?.participant_count ?? "—"}
                     </strong>
-                    <span className="helper">Latest session</span>
+                    <span className="helper">{tr("Latest session")}</span>
                   </div>
                   <TeamAverageCard
-                    title="Average distance"
+                    title={tr("Average distance")}
                     average={dashboard.data.latest_session?.average_distance}
                     manager={team.role !== "player"}
                     hasSession={!!dashboard.data.latest_session}
                   />
                   <TeamAverageCard
-                    title="Average Player Load"
+                    title={tr("Average Player Load")}
                     average={dashboard.data.latest_session?.average_player_load}
                     manager={team.role !== "player"}
                     hasSession={!!dashboard.data.latest_session}
@@ -208,15 +218,21 @@ export default function TeamDashboardPage() {
                 </div>
                 <p className="helper">
                   {dashboard.data.player_count != null &&
-                    `${dashboard.data.player_count} active roster athletes · `}
-                  Latest activity averages ·{" "}
-                  <span>{dashboard.data.rule_version}</span>
+                    tr("{count} active roster athletes", {
+                      count: dashboard.data.player_count,
+                    }) + " · "}
+                  {tr("Latest activity averages ·")}{" "}
+                  <span>
+                    <bdi dir="auto">{dashboard.data.rule_version}</bdi>
+                  </span>
                 </p>
                 <section>
                   <div className="card-head">
-                    <h2 className="section-title">Recent team sessions</h2>
+                    <h2 className="section-title">
+                      {tr("Recent team sessions")}
+                    </h2>
                     <Link href="/app/team/sessions" className="inline-link">
-                      All sessions →
+                      {tr("All sessions →")}
                     </Link>
                   </div>
                   {dashboard.data.recent_sessions.length ? (
@@ -229,9 +245,10 @@ export default function TeamDashboardPage() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState title="No accepted team sessions yet">
-                      Assign an existing processed report to this team or upload
-                      a new team report and import its eligible athlete rows.
+                    <EmptyState title={tr("No accepted team sessions yet")}>
+                      {tr(
+                        "Assign an existing processed report to this team or upload a new team report and import its eligible athlete rows.",
+                      )}
                     </EmptyState>
                   )}
                 </section>
@@ -249,28 +266,28 @@ export default function TeamDashboardPage() {
           {team.role === "admin" && (
             <section className="card card-pad">
               <div className="card-head">
-                <h2 className="section-title">Membership requests</h2>
+                <h2 className="section-title">{tr("Membership requests")}</h2>
                 <button
                   className="inline-link"
                   type="button"
                   onClick={requests.refresh}
                 >
-                  Refresh
+                  {tr("Refresh")}
                 </button>
               </div>
               <p className="helper">
-                Team ID to share privately:{" "}
+                {tr("Team ID to share privately:")}{" "}
                 <code className="break-all">{team.id}</code>
               </p>
               {requests.loading ? (
                 <Loading />
               ) : requests.error ? (
                 <ErrorState
-                  message={requests.error.message}
+                  message={requests.error}
                   onRetry={requests.refresh}
                 />
               ) : !requests.data?.items.length ? (
-                <p className="helper mt-4">No pending requests.</p>
+                <p className="helper mt-4">{tr("No pending requests.")}</p>
               ) : (
                 <div className="grid gap-3 mt-4">
                   {requests.data.items.map((item) => (
@@ -279,7 +296,7 @@ export default function TeamDashboardPage() {
                       className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3"
                     >
                       <span className="font-semibold text-sm">
-                        {item.display_name}
+                        <bdi dir="auto">{item.display_name}</bdi>
                       </span>
                       <div className="flex gap-2">
                         <button
@@ -288,7 +305,7 @@ export default function TeamDashboardPage() {
                           disabled={busy}
                           onClick={() => void approve(item.id, "player")}
                         >
-                          Approve player
+                          {tr("Approve player")}
                         </button>
                         <button
                           type="button"
@@ -296,7 +313,7 @@ export default function TeamDashboardPage() {
                           disabled={busy}
                           onClick={() => void approve(item.id, "coach")}
                         >
-                          Approve coach
+                          {tr("Approve coach")}
                         </button>
                       </div>
                     </div>
@@ -306,19 +323,19 @@ export default function TeamDashboardPage() {
             </section>
           )}
           <section className="card card-pad">
-            <h2 className="section-title">Team access</h2>
+            <h2 className="section-title">{tr("Team access")}</h2>
             <p className="page-subtitle mt-2">
-              Team members see accepted activity. Only managers can inspect team
-              players and report summaries. The uploader alone can open and
-              review a private PDF.
+              {tr(
+                "Team members see accepted activity. Only managers can inspect team players and report summaries. The uploader alone can open and review a private PDF.",
+              )}
             </p>
             <div className="flex flex-wrap gap-2 mt-4">
               <Link href="/app/team/players" className="btn btn-quiet">
-                Players
+                {tr("Players")}
               </Link>
               {team.role !== "player" && (
                 <Link href="/app/team/reports" className="btn btn-quiet">
-                  Reports
+                  {tr("Reports")}
                 </Link>
               )}
             </div>

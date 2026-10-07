@@ -168,7 +168,7 @@ describe("team workspace views", () => {
     expect(screen.getByText("analytics_v1")).toBeInTheDocument();
     expect(screen.getByText("Average distance")).toBeInTheDocument();
     expect(screen.getByText("Average Player Load")).toBeInTheDocument();
-    expect(screen.getByText("3,100 m")).toBeInTheDocument();
+    expect(screen.getAllByText("3,100 m")[0]).toBeInTheDocument();
     expect(screen.getByText("410.5")).toBeInTheDocument();
     expect(
       screen.getAllByText(/2 accepted players with this metric/),

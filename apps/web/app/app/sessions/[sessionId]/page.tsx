@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import {
   ArrowLeft,
@@ -18,7 +19,7 @@ import { Status } from "@/components/ui/status";
 import { useAuth } from "@/lib/auth/provider";
 import { ApiError } from "@/lib/api/client";
 import { useResource } from "@/lib/data/use-resource";
-import { dateLabel, metricDisplay, metricOf } from "@/lib/format";
+import { dateLabel, metricDisplay, metricOf, statusText } from "@/lib/format";
 import { metricLabels } from "@/lib/api/types";
 
 const primary = [
@@ -28,6 +29,8 @@ const primary = [
   "player_load_reported",
 ];
 export default function SessionDetail() {
+  const { tr, ui, locale } = useLocale();
+
   const { sessionId } = useParams<{ sessionId: string }>();
   const { api } = useAuth();
   const { player } = useApp();
@@ -45,14 +48,21 @@ export default function SessionDetail() {
             href="/app/sessions"
             className="inline-link flex items-center gap-1"
           >
-            <ArrowLeft size={14} /> Back to sessions
+            <ArrowLeft size={14} className="directional-icon" />{" "}
+            {tr("Back to sessions")}
           </Link>
-          <span className="eyebrow mt-4 block">Accepted player history</span>
+          <span className="eyebrow mt-4 block">
+            {tr("Accepted player history")}
+          </span>
           <h1 className="page-title">
-            Session · {dateLabel(session?.local_date)}
+            {tr("Session ·")}
+            {dateLabel(session?.local_date, locale)}
           </h1>
           <p className="page-subtitle capitalize">
-            {session?.session_type ?? "Loading session"} · {player.display_name}
+            {session
+              ? statusText(session.session_type, locale)
+              : tr("Loading session")}{" "}
+            · <bdi dir="auto">{player.display_name}</bdi>
           </p>
         </div>
         {session && <Status value={session.quality_state} />}
@@ -61,13 +71,13 @@ export default function SessionDetail() {
         <ErrorState
           message={
             resource.error instanceof ApiError && resource.error.status === 404
-              ? "This session is unavailable to this account."
-              : resource.error.message
+              ? tr("This session is unavailable to this account.")
+              : resource.error
           }
           onRetry={resource.refresh}
         />
       ) : resource.loading && !session ? (
-        <Loading label="Loading session details…" />
+        <Loading label={tr("Loading session details…")} />
       ) : (
         session && (
           <>
@@ -76,14 +86,18 @@ export default function SessionDetail() {
                 const metric = metricOf(session, key);
                 return (
                   <div className="card metric-card" key={key}>
-                    <div className="metric-label">{metricLabels[key]}</div>
+                    <div className="metric-label">{ui(metricLabels[key])}</div>
                     <div className="metric-value mt-4">
-                      {metric ? metricDisplay(metric.value, metric.unit) : "—"}
+                      <bdi dir="ltr">
+                        {metric
+                          ? metricDisplay(metric.value, metric.unit, locale)
+                          : "—"}
+                      </bdi>
                     </div>
                     <div className="metric-detail">
                       {metric
-                        ? "Accepted value"
-                        : "Not available in this session"}
+                        ? tr("Accepted value")
+                        : tr("Not available in this session")}
                     </div>
                   </div>
                 );
@@ -93,9 +107,9 @@ export default function SessionDetail() {
               <section className="card card-pad">
                 <div className="card-head">
                   <div>
-                    <h2 className="section-title">Accepted metrics</h2>
+                    <h2 className="section-title">{tr("Accepted metrics")}</h2>
                     <p className="section-subtitle">
-                      Exact stored values and their reported units
+                      {tr("Exact stored values and their reported units")}
                     </p>
                   </div>
                   <CheckCircle2 size={19} className="text-accent-text" />
@@ -105,11 +119,11 @@ export default function SessionDetail() {
                     <table className="data-table">
                       <thead>
                         <tr>
-                          <th>Metric</th>
-                          <th>Value</th>
-                          <th>Report label</th>
-                          <th>Quality</th>
-                          <th>Source definition</th>
+                          <th>{tr("Metric")}</th>
+                          <th>{tr("Value")}</th>
+                          <th>{tr("Report label")}</th>
+                          <th>{tr("Quality")}</th>
+                          <th>{tr("Source definition")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -119,13 +133,20 @@ export default function SessionDetail() {
                               {metricLabels[item.metric_key] ??
                                 item.source_label}
                             </td>
-                            <td>{metricDisplay(item.value, item.unit)}</td>
-                            <td>{item.source_label}</td>
+                            <td>
+                              <bdi dir="ltr">
+                                {metricDisplay(item.value, item.unit, locale)}
+                              </bdi>
+                            </td>
+                            <td>
+                              <bdi dir="auto">{item.source_label}</bdi>
+                            </td>
                             <td>
                               <Status value={item.quality_state} />
                             </td>
                             <td>
-                              {item.definition_id ?? "Definition unverified"}
+                              {item.definition_id ??
+                                tr("Definition unverified")}
                             </td>
                           </tr>
                         ))}
@@ -133,38 +154,46 @@ export default function SessionDetail() {
                     </table>
                   </div>
                 ) : (
-                  <EmptyState title="No accepted metrics">
-                    Held or missing values are excluded from the accepted metric
-                    list.
+                  <EmptyState title={tr("No accepted metrics")}>
+                    {tr(
+                      "Held or missing values are excluded from the accepted metric list.",
+                    )}
                   </EmptyState>
                 )}
               </section>
               <div className="stack">
                 <section className="card card-pad">
                   <div className="card-head">
-                    <h2 className="section-title">Source & provenance</h2>
+                    <h2 className="section-title">
+                      {tr("Source & provenance")}
+                    </h2>
                     <ShieldCheck size={18} className="text-accent-text" />
                   </div>
                   <div className="key-value">
-                    <span>Report reference</span>
+                    <span>{tr("Report reference")}</span>
                     <strong className="font-mono text-[10px]">
-                      {session.provenance.report_upload_id}
+                      <bdi dir="auto">
+                        {session.provenance.report_upload_id}
+                      </bdi>
                     </strong>
                   </div>
                   <div className="key-value">
-                    <span>Athlete row reference</span>
+                    <span>{tr("Athlete row reference")}</span>
                     <strong className="font-mono text-[10px]">
-                      {session.provenance.source_athlete_row_id}
+                      <bdi dir="auto">
+                        {session.provenance.source_athlete_row_id}
+                      </bdi>
                     </strong>
                   </div>
                   <p className="helper mt-3">
-                    This session contains only the linked athlete’s accepted
-                    values. The full team PDF remains private to its uploader.
+                    {tr(
+                      "This session contains only the linked athlete’s accepted values. The full team PDF remains private to its uploader.",
+                    )}
                   </p>
                 </section>
                 <section className="card card-pad">
                   <div className="card-head">
-                    <h2 className="section-title">Validation notes</h2>
+                    <h2 className="section-title">{tr("Validation notes")}</h2>
                     <FileClock size={18} className="text-info-text" />
                   </div>
                   {session.warnings.length ? (
@@ -175,13 +204,15 @@ export default function SessionDetail() {
                           className="text-xs leading-5 text-muted"
                         >
                           <Status value={item.severity} />{" "}
-                          <span className="ml-1">{item.message}</span>
+                          <span className="ms-1">
+                            <bdi dir="auto">{item.message}</bdi>
+                          </span>
                         </li>
                       ))}
                     </ul>
                   ) : (
                     <p className="helper mb-0">
-                      No validation warnings on this accepted session.
+                      {tr("No validation warnings on this accepted session.")}
                     </p>
                   )}
                 </section>
@@ -206,10 +237,12 @@ function SessionAnalysis({
   playerId: string;
   sessionId: string;
 }) {
+  const { tr, ui } = useLocale();
+
   const { api } = useAuth();
   const [result, setResult] = useState<AnalystResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | Error | null>(null);
   useEffect(() => {
     let active = true;
     api
@@ -220,9 +253,7 @@ function SessionAnalysis({
       .catch((reason) => {
         if (active && !(reason instanceof ApiError && reason.status === 404))
           setError(
-            reason instanceof Error
-              ? reason.message
-              : "Could not load analysis",
+            reason instanceof Error ? reason : "Could not load analysis",
           );
       });
     return () => {
@@ -237,27 +268,30 @@ function SessionAnalysis({
         await api.analyzeSession(playerId, sessionId, crypto.randomUUID()),
       );
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Analysis unavailable",
-      );
+      setError(reason instanceof Error ? reason : "Analysis unavailable");
     } finally {
       setLoading(false);
     }
   }
   return (
-    <section className="card card-pad stack" aria-label="Session AI analysis">
+    <section
+      className="card card-pad stack"
+      aria-label={tr("Session AI analysis")}
+    >
       <div className="card-head">
         <div>
-          <span className="eyebrow">PlayerIQ Analyst</span>
-          <h2 className="section-title">Session interpretation</h2>
+          <span className="eyebrow">{tr("PlayerIQ Analyst")}</span>
+          <h2 className="section-title">{tr("Session interpretation")}</h2>
           <p className="section-subtitle">
-            An explanation of verified facts from this session and your history.
+            {tr(
+              "An explanation of verified facts from this session and your history.",
+            )}
           </p>
         </div>
         <Sparkles size={19} className="text-accent-text" />
       </div>
       {result && <AnswerCard result={result} />}
-      {error && <ErrorState message={error} />}
+      {error && <ErrorState message={ui(error)} />}
       <button
         type="button"
         className="btn btn-primary self-start"
@@ -265,12 +299,12 @@ function SessionAnalysis({
         disabled={loading}
       >
         {loading
-          ? "Analyzing your history…"
+          ? tr("Analyzing your history…")
           : result?.stale
-            ? "Regenerate current analysis"
+            ? tr("Regenerate current analysis")
             : result
-              ? "Analyze again"
-              : "Analyze this session"}
+              ? tr("Analyze again")
+              : tr("Analyze this session")}
       </button>
     </section>
   );

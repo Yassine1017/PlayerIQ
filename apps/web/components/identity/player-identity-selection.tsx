@@ -1,17 +1,19 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import { useEffect, useRef } from "react";
 import { IdentitySteps } from "./identity-onboarding";
 import type { CandidateRow, SessionType, UploadStatus } from "@/lib/api/types";
 import { canSelectSelf } from "@/lib/data/use-identity-reports";
+import type { Locale } from "@/lib/i18n/locale";
 import { dateLabel, metricDisplay } from "@/lib/format";
 import { Status } from "@/components/ui/status";
 
-function recordedDistance(row: CandidateRow) {
+function recordedDistance(row: CandidateRow, locale: Locale) {
   const distance = row.metrics.find(
     (metric) => metric.source_label === "Distance (m)",
   );
-  return metricDisplay(distance?.raw_value, distance?.raw_unit ?? "m");
+  return metricDisplay(distance?.raw_value, distance?.raw_unit ?? "m", locale);
 }
 
 export function PlayerIdentitySelection({
@@ -37,7 +39,7 @@ export function PlayerIdentitySelection({
   sessionType: SessionType;
   confirmed: boolean;
   busy: boolean;
-  error: string | null;
+  error: string | Error | null;
   success: string | null;
   onSelect: (row: CandidateRow) => void;
   onChooseAnother: () => void;
@@ -45,6 +47,8 @@ export function PlayerIdentitySelection({
   onConfirmEvidence: (value: boolean) => void;
   onConfirm: () => void;
 }) {
+  const { tr, ui, locale } = useLocale();
+
   const heading = useRef<HTMLHeadingElement>(null);
   const selectedId = selected?.id;
   useEffect(() => {
@@ -59,44 +63,52 @@ export function PlayerIdentitySelection({
       className="card card-pad identity-selection"
       aria-labelledby="select-player-heading"
     >
-      <span className="eyebrow">Your player identity</span>
+      <span className="eyebrow">{tr("Your player identity")}</span>
       <h2 id="select-player-heading" className="section-title mt-2">
-        Select yourself from this report
+        {tr("Select yourself from this report")}
       </h2>
       <p className="section-subtitle">
-        Check the source name, position and recorded distance. Your account name
-        is never used to select an athlete.
+        {tr(
+          "Check the source name, position and recorded distance. Your account name is never used to select an athlete.",
+        )}
       </p>
       <IdentitySteps uploaded selected={Boolean(selected)} />
       {selected ? (
         <div className="identity-confirmation">
           <h3 ref={heading} tabIndex={-1} className="section-title">
-            Is this your player identity?
+            {tr("Is this your player identity?")}
           </h3>
           <dl className="identity-evidence">
             <div>
-              <dt>Source athlete</dt>
-              <dd>{selected.source_name}</dd>
+              <dt>{tr("Source athlete")}</dt>
+              <dd>
+                <bdi dir="auto">{selected.source_name}</bdi>
+              </dd>
             </div>
             <div>
-              <dt>Position</dt>
-              <dd>{selected.source_position_code ?? "Not reported"}</dd>
+              <dt>{tr("Position")}</dt>
+              <dd>{selected.source_position_code ?? tr("Not reported")}</dd>
             </div>
             <div>
-              <dt>Report date</dt>
-              <dd>{dateLabel(report.activity?.reported_local_datetime)}</dd>
+              <dt>{tr("Report date")}</dt>
+              <dd>
+                {dateLabel(report.activity?.reported_local_datetime, locale)}
+              </dd>
             </div>
             <div>
-              <dt>Recorded distance</dt>
-              <dd>{recordedDistance(selected)}</dd>
+              <dt>{tr("Recorded distance")}</dt>
+              <dd>
+                <bdi dir="ltr">{recordedDistance(selected, locale)}</bdi>
+              </dd>
             </div>
           </dl>
           <p className="helper mt-3">
-            Only accepted metrics will appear in your dashboard. Missing and
-            held chart values remain unavailable.
+            {tr(
+              "Only accepted metrics will appear in your dashboard. Missing and held chart values remain unavailable.",
+            )}
           </p>
           <label className="field mt-4 max-w-xs">
-            Session type
+            {tr("Session type")}
             <select
               className="select"
               value={sessionType}
@@ -105,9 +117,9 @@ export function PlayerIdentitySelection({
               }
               disabled={busy}
             >
-              <option value="training">Training</option>
-              <option value="match">Match</option>
-              <option value="unknown">Unknown</option>
+              <option value="training">{tr("Training")}</option>
+              <option value="match">{tr("Match")}</option>
+              <option value="unknown">{tr("Unknown")}</option>
             </select>
           </label>
           <label className="mt-4 flex items-start gap-2 text-sm">
@@ -119,13 +131,14 @@ export function PlayerIdentitySelection({
               onChange={(event) => onConfirmEvidence(event.target.checked)}
             />
             <span>
-              I have checked the source information and confirm this is my
-              athlete row.
+              {tr(
+                "I have checked the source information and confirm this is my athlete row.",
+              )}
             </span>
           </label>
           {error && (
             <div className="error-box mt-4" role="alert">
-              {error}
+              {ui(error)}
             </div>
           )}
           {success && (
@@ -140,7 +153,7 @@ export function PlayerIdentitySelection({
               disabled={!confirmed || busy}
               onClick={onConfirm}
             >
-              {busy ? "Confirming…" : "Confirm — This is me"}
+              {busy ? tr("Confirming…") : tr("Confirm — This is me")}
             </button>
             <button
               type="button"
@@ -148,7 +161,7 @@ export function PlayerIdentitySelection({
               disabled={busy}
               onClick={onChooseAnother}
             >
-              Choose another player
+              {tr("Choose another player")}
             </button>
           </div>
         </div>
@@ -161,44 +174,53 @@ export function PlayerIdentitySelection({
               canSelectSelf(row, playerId);
             const reason =
               row.quality_state === "zero_recorded"
-                ? "Zero activity was recorded. An accepted session cannot be created from this row."
+                ? tr(
+                    "Zero activity was recorded. An accepted session cannot be created from this row.",
+                  )
                 : row.quality_state !== "ready"
-                  ? "This row needs validation review before an accepted session can be created."
+                  ? tr(
+                      "This row needs validation review before an accepted session can be created.",
+                    )
                   : !canSelectSelf(row, playerId)
-                    ? "This row is already linked to a different player."
+                    ? tr("This row is already linked to a different player.")
                     : !allowed
-                      ? "Your player must be an active member and you must manage this assigned team report."
+                      ? tr(
+                          "Your player must be an active member and you must manage this assigned team report.",
+                        )
                       : !report.activity?.reported_local_datetime
-                        ? "The report date needs review before linking."
+                        ? tr("The report date needs review before linking.")
                         : null;
             return (
               <li key={row.id} className="identity-athlete">
                 <div className="min-w-0">
                   <h3 className="font-bold text-sm break-words">
-                    {row.source_name}
+                    <bdi dir="auto">{row.source_name}</bdi>
                   </h3>
                   <p className="helper mt-1">
-                    {row.source_position_code ?? "Position not reported"} ·{" "}
-                    {recordedDistance(row)} recorded
+                    {row.source_position_code ?? tr("Position not reported")} ·{" "}
+                    <bdi dir="ltr">{recordedDistance(row, locale)}</bdi>{" "}
+                    {tr("recorded")}
                   </p>
                   <Status value={row.quality_state} />
                   {row.recognized_player_id === playerId && (
                     <p className="helper mt-2">
-                      Recognized identity · confirmation required
+                      {tr("Recognized identity · confirmation required")}
                     </p>
                   )}
                   {reason && (
-                    <p className="text-xs text-muted mt-2">{reason}</p>
+                    <p className="text-xs text-muted mt-2">{ui(reason)}</p>
                   )}
                 </div>
                 <button
                   type="button"
                   className="btn btn-primary"
                   disabled={!eligible}
-                  aria-label={`Select myself — ${row.source_name}`}
+                  aria-label={tr("Select myself — {name}", {
+                    name: row.source_name,
+                  })}
                   onClick={() => onSelect(row)}
                 >
-                  Select myself →
+                  {tr("Select myself →")}
                 </button>
               </li>
             );

@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import { ArrowRight, Check, Fingerprint } from "lucide-react";
 import Link from "next/link";
@@ -19,8 +20,10 @@ export function IdentitySteps({
   uploaded: boolean;
   selected?: boolean;
 }) {
+  const { tr, ui } = useLocale();
+
   return (
-    <ol className="identity-steps" aria-label="Player identity progress">
+    <ol className="identity-steps" aria-label={tr("Player identity progress")}>
       {[
         { label: "GPS report uploaded", done: uploaded },
         { label: "Select yourself from the report", done: selected },
@@ -31,10 +34,10 @@ export function IdentitySteps({
             {step.done ? <Check size={15} /> : index + 1}
           </span>
           <span>
-            {step.label}
+            {ui(step.label)}
             <span className="sr-only">
               {" "}
-              — {step.done ? "complete" : "pending"}
+              — {step.done ? tr("Complete") : tr("Pending")}
             </span>
           </span>
         </li>
@@ -44,6 +47,8 @@ export function IdentitySteps({
 }
 
 export function IdentityOnboarding() {
+  const { tr, locale } = useLocale();
+
   const { api } = useAuth();
   const { player } = useApp();
   const reports = useIdentityReports(api, player.id);
@@ -64,28 +69,36 @@ export function IdentityOnboarding() {
           <Fingerprint size={25} />
         </span>
         <div>
-          <span className="eyebrow">Your first step</span>
-          <h2 id="connect-player-heading">Connect your player identity</h2>
+          <span className="eyebrow">{tr("Your first step")}</span>
+          <h2 id="connect-player-heading">
+            {tr("Connect your player identity")}
+          </h2>
           <p>
-            Select yourself from an uploaded GPS report to unlock your personal
-            performance dashboard. You only need to confirm your identity once.
+            {tr(
+              "Select yourself from an uploaded GPS report to unlock your personal performance dashboard. You only need to confirm your identity once.",
+            )}
           </p>
         </div>
       </div>
       <IdentitySteps uploaded={Boolean(options?.uploads.length)} />
       {reports.loading ? (
-        <Loading label="Checking your GPS reports…" />
+        <Loading label={tr("Checking your GPS reports…")} />
       ) : reports.error ? (
-        <ErrorState message={reports.error.message} onRetry={reports.refresh} />
+        <ErrorState message={reports.error} onRetry={reports.refresh} />
       ) : (
         processing.length > 0 && (
           <p className="identity-progress-note" role="status">
-            {processing.length === 1
-              ? "Your report is"
-              : `${processing.length} reports are`}{" "}
-            still processing:{" "}
-            {processing.map((item) => statusText(item.status)).join(", ")}.
-            Refresh when processing finishes.
+            {tr(
+              processing.length === 1
+                ? "Your report is still processing: {status}. Refresh when processing finishes."
+                : "{count} reports are still processing: {status}. Refresh when processing finishes.",
+              {
+                count: processing.length,
+                status: processing
+                  .map((item) => statusText(item.status, locale))
+                  .join(", "),
+              },
+            )}
           </p>
         )
       )}
@@ -104,9 +117,9 @@ export function IdentityOnboarding() {
             }
           >
             {hasChoice || reports.error
-              ? "Choose my player identity"
-              : "Upload a GPS report"}
-            <ArrowRight size={16} />
+              ? tr("Choose my player identity")
+              : tr("Upload a GPS report")}
+            <ArrowRight size={16} className="directional-icon" />
           </Link>
         )}
         {processing.length > 0 && (
@@ -115,7 +128,7 @@ export function IdentityOnboarding() {
             className="inline-link"
             onClick={reports.refresh}
           >
-            Refresh report status
+            {tr("Refresh report status")}
           </button>
         )}
       </div>

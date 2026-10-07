@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import { ArrowRight, FileText, FolderOpen, UploadCloud } from "lucide-react";
 import Link from "next/link";
@@ -14,6 +15,8 @@ import { useApp } from "@/components/layout/app-frame";
 import type { SessionType } from "@/lib/api/types";
 
 export default function UploadPage() {
+  const { tr, ui, locale } = useLocale();
+
   const { api } = useAuth();
   const { teams } = useApp();
   const [teamId, setTeamId] = useState("");
@@ -21,7 +24,7 @@ export default function UploadPage() {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | Error | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -55,7 +58,7 @@ export default function UploadPage() {
       );
       router.push(`/app/uploads/${result.upload_id}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Upload failed");
+      setError(reason instanceof Error ? reason : "Upload failed");
     } finally {
       setBusy(false);
     }
@@ -64,11 +67,12 @@ export default function UploadPage() {
     <div className="stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Add to your history</span>
-          <h1 className="page-title">Upload GPS report</h1>
+          <span className="eyebrow">{tr("Add to your history")}</span>
+          <h1 className="page-title">{tr("Upload GPS report")}</h1>
           <p className="page-subtitle">
-            Import a whole report into your team, or upload privately to connect
-            your own athlete row.
+            {tr(
+              "Import a whole report into your team, or upload privately to connect your own athlete row.",
+            )}
           </p>
         </div>
       </div>
@@ -76,9 +80,9 @@ export default function UploadPage() {
         <section className="card card-pad">
           <div className="card-head">
             <div>
-              <h2 className="section-title">Choose a report</h2>
+              <h2 className="section-title">{tr("Choose a report")}</h2>
               <p className="section-subtitle">
-                Supported football GPS PDF layout · maximum 10 MB
+                {tr("Supported football GPS PDF layout · maximum 10 MB")}
               </p>
             </div>
             <UploadCloud className="text-accent-text" size={21} />
@@ -100,16 +104,18 @@ export default function UploadPage() {
               <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-accent-soft text-accent-text">
                 <UploadCloud size={25} />
               </div>
-              <strong className="mt-3 block text-sm">Drag your PDF here</strong>
+              <strong className="mt-3 block text-sm">
+                {tr("Drag your PDF here")}
+              </strong>
               <div className="mt-1 text-xs text-muted">
-                or select a file from your computer
+                {tr("or select a file from your computer")}
               </div>
               <input
                 ref={input}
                 type="file"
                 accept="application/pdf,.pdf"
                 className="sr-only"
-                aria-label="Select GPS PDF"
+                aria-label={tr("Select GPS PDF")}
                 onChange={(e) => pick(e.target.files?.[0] ?? null)}
               />
               <button
@@ -117,7 +123,7 @@ export default function UploadPage() {
                 className="btn btn-quiet mt-4"
                 onClick={() => input.current?.click()}
               >
-                Browse files
+                {tr("Browse files")}
               </button>
             </div>
           </div>
@@ -125,9 +131,16 @@ export default function UploadPage() {
             <div className="mt-4 flex items-center gap-3 rounded-lg border border-line bg-surface-muted p-3">
               <FileText size={19} className="text-accent-text" />
               <div className="min-w-0 flex-1">
-                <strong className="block truncate text-xs">{file.name}</strong>
+                <strong className="block truncate text-xs">
+                  <bdi dir="auto">{file.name}</bdi>
+                </strong>
                 <span className="small muted">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB · PDF
+                  {new Intl.NumberFormat(locale, {
+                    numberingSystem: "latn",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  }).format(file.size / 1024 / 1024)}{" "}
+                  {tr("MB · PDF")}
                 </span>
               </div>
               <button
@@ -138,53 +151,52 @@ export default function UploadPage() {
                   if (input.current) input.current.value = "";
                 }}
               >
-                Remove
+                {tr("Remove")}
               </button>
             </div>
           )}
           {teams.some((t) => t.role !== "player") && (
             <label className="field mt-4">
-              Report workspace
+              {tr("Report workspace")}
               <select
                 className="select"
                 value={teamId}
                 onChange={(e) => setTeamId(e.target.value)}
               >
-                <option value="">Private to my account</option>
+                <option value="">{tr("Private to my account")}</option>
                 {teams
                   .filter((t) => t.role !== "player")
                   .map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name} team workspace
+                      {t.name} {tr("team workspace")}
                     </option>
                   ))}
               </select>
               <span className="helper">
-                Selecting a team and uploading authorizes automatic import of
-                all its identifiable athletes, including nonparticipants.
-                Eligible sessions are shared with the team. The PDF and review
-                stay private to you.
+                {tr(
+                  "Selecting a team and uploading authorizes automatic import of all its identifiable athletes, including nonparticipants. Eligible sessions are shared with the team. The PDF and review stay private to you.",
+                )}
               </span>
             </label>
           )}
           {teamId && (
             <label className="field mt-4">
-              Team session type
+              {tr("Team session type")}
               <select
                 className="select"
                 value={sessionType}
                 onChange={(e) => setSessionType(e.target.value as SessionType)}
               >
-                <option value="unknown">Unknown</option>
-                <option value="training">Training</option>
-                <option value="match">Match</option>
+                <option value="unknown">{tr("Unknown")}</option>
+                <option value="training">{tr("Training")}</option>
+                <option value="match">{tr("Match")}</option>
               </select>
             </label>
           )}
           {progress !== null && (
             <div className="mt-4">
               <div className="mb-1 flex justify-between text-xs">
-                <span>Uploading securely</span>
+                <span>{tr("Uploading securely")}</span>
                 <span>{progress}%</span>
               </div>
               <div className="h-2 rounded-full bg-surface-muted">
@@ -197,7 +209,7 @@ export default function UploadPage() {
           )}
           {error && (
             <div className="error-box mt-4" role="alert">
-              {error}
+              {ui(error)}
             </div>
           )}
           <button
@@ -207,17 +219,17 @@ export default function UploadPage() {
             onClick={() => void submit()}
           >
             {busy
-              ? "Uploading…"
+              ? tr("Uploading…")
               : teamId
-                ? "Upload and import team athletes"
-                : "Upload and process report"}
-            <ArrowRight size={15} />
+                ? tr("Upload and import team athletes")
+                : tr("Upload and process report")}
+            <ArrowRight size={15} className="directional-icon" />
           </button>
         </section>
         <section className="card card-pad">
-          <h2 className="section-title">What happens next</h2>
+          <h2 className="section-title">{tr("What happens next")}</h2>
           <p className="section-subtitle mb-5">
-            Your report stays private while each step is checked.
+            {tr("Your report stays private while each step is checked.")}
           </p>
           {[
             {
@@ -243,9 +255,9 @@ export default function UploadPage() {
                 {item.n}
               </span>
               <div>
-                <strong className="text-xs">{item.title}</strong>
+                <strong className="text-xs">{ui(item.title)}</strong>
                 <p className="mt-1 mb-0 text-xs leading-5 text-muted">
-                  {item.text}
+                  {ui(item.text)}
                 </p>
               </div>
             </div>
@@ -255,9 +267,9 @@ export default function UploadPage() {
       <section className="card card-pad">
         <div className="card-head">
           <div>
-            <h2 className="section-title">Recent uploads</h2>
+            <h2 className="section-title">{tr("Recent uploads")}</h2>
             <p className="section-subtitle">
-              Only reports uploaded by this account appear here
+              {tr("Only reports uploaded by this account appear here")}
             </p>
           </div>
           <FolderOpen size={18} className="text-muted" />
@@ -265,13 +277,10 @@ export default function UploadPage() {
         {uploads.loading ? (
           <Loading />
         ) : uploads.error ? (
-          <ErrorState
-            message={uploads.error.message}
-            onRetry={uploads.refresh}
-          />
+          <ErrorState message={uploads.error} onRetry={uploads.refresh} />
         ) : !uploads.data?.items.length ? (
-          <EmptyState title="No reports uploaded yet">
-            Your processed reports will appear here.
+          <EmptyState title={tr("No reports uploaded yet")}>
+            {tr("Your processed reports will appear here.")}
           </EmptyState>
         ) : (
           <>
@@ -279,20 +288,22 @@ export default function UploadPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Uploaded</th>
-                    <th>File</th>
-                    <th>Status</th>
-                    <th>Athlete rows</th>
+                    <th>{tr("Uploaded")}</th>
+                    <th>{tr("File")}</th>
+                    <th>{tr("Status")}</th>
+                    <th>{tr("Athlete rows")}</th>
                     <th>
-                      <span className="sr-only">Action</span>
+                      <span className="sr-only">{tr("Action")}</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {uploads.data.items.map((item) => (
                     <tr key={item.upload_id}>
-                      <td>{dateLabel(item.created_at)}</td>
-                      <td className="font-bold">{item.original_filename}</td>
+                      <td>{dateLabel(item.created_at, locale)}</td>
+                      <td className="font-bold">
+                        <bdi dir="auto">{item.original_filename}</bdi>
+                      </td>
                       <td>
                         <Status value={item.status} />
                       </td>
@@ -302,7 +313,7 @@ export default function UploadPage() {
                           className="inline-link"
                           href={`/app/uploads/${item.upload_id}`}
                         >
-                          Open →
+                          {tr("Open →")}
                         </Link>
                       </td>
                     </tr>
@@ -318,7 +329,7 @@ export default function UploadPage() {
                   setCursor(uploads.data?.next_cursor ?? undefined)
                 }
               >
-                More uploads
+                {tr("More uploads")}
               </button>
             )}
           </>

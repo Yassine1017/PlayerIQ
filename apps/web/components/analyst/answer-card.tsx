@@ -1,9 +1,14 @@
+"use client";
+import { useLocale } from "@/components/localization/locale-provider";
+import { interfaceText } from "@/lib/i18n";
+import { statusText, factDisplay } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locale";
 import Link from "next/link";
 import { ArrowUpRight, DatabaseZap, Info, Sparkles } from "lucide-react";
 import type { AnalystResponse, AnalystFact } from "@/lib/api/types";
 import { metricLabels } from "@/lib/api/types";
 
-function factLabel(fact: AnalystFact) {
+function factLabel(fact: AnalystFact, locale: Locale) {
   const metric = fact.metric_key
     ? (metricLabels[fact.metric_key] ?? fact.metric_key.replaceAll("_", " "))
     : "Value";
@@ -17,7 +22,7 @@ function factLabel(fact: AnalystFact) {
     mad: "Median absolute deviation",
     modified_z_score: "Outlier score",
   };
-  return `${metric} · ${role[fact.role] ?? fact.role}`;
+  return `${interfaceText(locale, metric)} · ${interfaceText(locale, role[fact.role] ?? "Unavailable")}`;
 }
 
 const resultMessages: Record<string, string> = {
@@ -31,6 +36,8 @@ const resultMessages: Record<string, string> = {
 };
 
 export function AnswerCard({ result }: { result: AnalystResponse }) {
+  const { tr, ui, locale } = useLocale();
+
   const facts = new Map(result.facts.map((fact) => [fact.fact_id, fact]));
   const cited = new Set(
     result.answer.sentences.flatMap((sentence) => sentence.fact_ids),
@@ -55,38 +62,43 @@ export function AnswerCard({ result }: { result: AnalystResponse }) {
   );
   const budgetExhausted = result.error_code === "ai_budget_exhausted";
   return (
-    <article className="analyst-answer" aria-label="PlayerIQ Analyst answer">
+    <article
+      className="analyst-answer"
+      aria-label={tr("PlayerIQ Analyst answer")}
+    >
       <div className="analyst-answer-head">
         <span className="analyst-mark">
           <Sparkles size={17} />
         </span>
         <div>
-          <strong>PlayerIQ Analyst</strong>
-          <span>Interpretation grounded in your sessions</span>
+          <strong>{tr("PlayerIQ Analyst")}</strong>
+          <span>{tr("Interpretation grounded in your sessions")}</span>
         </div>
         <span className="analyst-state">
           {result.answer.status === "answered"
-            ? "Verified"
+            ? tr("Verified")
             : result.answer.status === "insufficient_data"
-              ? "Limited data"
-              : "Unavailable"}
+              ? tr("Limited data")
+              : tr("Unavailable")}
         </span>
       </div>
       {result.stale && (
         <div className="analyst-notice" role="status">
-          This analysis was generated from an older version of your session
-          history. Ask again for a current answer.
+          {tr(
+            "This analysis was generated from an older version of your session history. Ask again for a current answer.",
+          )}
         </div>
       )}
       <div className="analyst-prose">
         {budgetExhausted ? (
           <p>
-            AI Analyst is temporarily unavailable because this month&apos;s AI
-            usage limit has been reached.
+            {tr(
+              "AI Analyst is temporarily unavailable because this month's AI usage limit has been reached.",
+            )}
           </p>
         ) : (
           result.answer.sentences.map((sentence, index) => (
-            <p key={index}>
+            <p key={index} dir="auto">
               {sentence.text}
               {sentence.fact_ids.length > 0 && (
                 <span className="analyst-inline-facts">
@@ -94,8 +106,10 @@ export function AnswerCard({ result }: { result: AnalystResponse }) {
                     const fact = facts.get(id);
                     return fact ? (
                       <span className="analyst-inline-fact" key={id}>
-                        {fact.display_value}{" "}
-                        {fact.unit === "%" ? "" : fact.unit}
+                        <bdi dir="ltr">
+                          {factDisplay(fact.display_value, locale)}{" "}
+                          {fact.unit === "%" ? "" : fact.unit}
+                        </bdi>
                       </span>
                     ) : null;
                   })}
@@ -108,25 +122,29 @@ export function AnswerCard({ result }: { result: AnalystResponse }) {
       {limitations.length > 0 && (
         <div className="analyst-limitations" role="note">
           {limitations.map((message) => (
-            <p key={message}>{message}</p>
+            <p key={message}>{ui(message)}</p>
           ))}
         </div>
       )}
       {shown.length > 0 && (
         <div className="analyst-evidence">
           <div className="analyst-section-title">
-            <DatabaseZap size={16} /> Verified facts
+            <DatabaseZap size={16} /> {tr("Verified facts")}
           </div>
           <div className="analyst-fact-grid">
             {shown.map((fact) => (
               <div className="analyst-fact" key={fact.fact_id}>
-                <span>{factLabel(fact)}</span>
+                <span>{factLabel(fact, locale)}</span>
                 <strong>
-                  {fact.display_value} {fact.unit === "%" ? "" : fact.unit}
+                  <bdi dir="ltr">
+                    {factDisplay(fact.display_value, locale)}{" "}
+                    {fact.unit === "%" ? "" : fact.unit}
+                  </bdi>
                 </strong>
                 <small>
-                  {fact.sample_size} comparable{" "}
-                  {fact.sample_size === 1 ? "session" : "sessions"}
+                  {tr("{count} comparable sessions", {
+                    count: fact.sample_size,
+                  })}
                 </small>
               </div>
             ))}
@@ -135,11 +153,12 @@ export function AnswerCard({ result }: { result: AnalystResponse }) {
       )}
       {sources.length > 0 && (
         <div className="analyst-sources">
-          <span>Source sessions</span>
+          <span>{tr("Source sessions")}</span>
           <div>
             {sources.slice(0, 12).map((id, index) => (
               <Link href={`/app/sessions/${id}`} key={id}>
-                Session {index + 1} <ArrowUpRight size={13} />
+                {tr("Session {number}", { number: index + 1 })}{" "}
+                <ArrowUpRight size={13} className="directional-icon" />
               </Link>
             ))}
           </div>
@@ -147,22 +166,20 @@ export function AnswerCard({ result }: { result: AnalystResponse }) {
       )}
       <details className="analyst-method">
         <summary>
-          <Info size={15} /> How calculated
+          <Info size={15} /> {tr("How calculated")}
         </summary>
         <p>
-          PlayerIQ used {result.analytics_rule_version} on accepted, linked
-          sessions. Every displayed value came from a read-only backend tool;
-          the AI wrote only the explanation. Missing, held, and noncomparable
-          values are excluded from calculations.
+          {tr(
+            "PlayerIQ used {rule} on accepted, linked sessions. Every displayed value came from a read-only backend tool; the AI wrote only the explanation. Missing, held, and noncomparable values are excluded from calculations.",
+            { rule: result.analytics_rule_version },
+          )}
         </p>
         {result.results.map((tool, index) => (
           <div key={`${tool.tool}-${index}`}>
-            <strong>
-              {tool.tool.replaceAll("get_", "").replaceAll("_", " ")}
-            </strong>
+            <strong>{tool.tool}</strong>
             <span>
               {tool.items
-                .map((item) => item.status.replaceAll("_", " "))
+                .map((item) => statusText(item.status, locale))
                 .join(", ")}
             </span>
           </div>

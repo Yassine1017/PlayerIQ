@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,6 +16,8 @@ import {
 import { dateLabel } from "@/lib/format";
 
 export default function ConnectIdentityPage() {
+  const { tr, locale } = useLocale();
+
   const { api } = useAuth();
   const { player } = useApp();
   const router = useRouter();
@@ -34,18 +37,19 @@ export default function ConnectIdentityPage() {
     <div className="stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Connect your player identity</span>
-          <h1 className="page-title">Choose a GPS report</h1>
+          <span className="eyebrow">{tr("Connect your player identity")}</span>
+          <h1 className="page-title">{tr("Choose a GPS report")}</h1>
           <p className="page-subtitle">
-            Choose the report you want to use, then select yourself from its
-            athlete rows.
+            {tr(
+              "Choose the report you want to use, then select yourself from its athlete rows.",
+            )}
           </p>
         </div>
       </div>
       {reports.loading || direct ? (
-        <Loading label="Finding your report…" />
+        <Loading label={tr("Finding your report…")} />
       ) : reports.error ? (
-        <ErrorState message={reports.error.message} onRetry={reports.refresh} />
+        <ErrorState message={reports.error} onRetry={reports.refresh} />
       ) : (
         reports.data && (
           <>
@@ -61,14 +65,20 @@ export default function ConnectIdentityPage() {
                         upload.original_filename}
                     </h2>
                     <p className="helper mt-2">
-                      {dateLabel(report.activity?.reported_local_datetime)} ·{" "}
-                      {report.candidate_rows.length} source athletes
+                      {dateLabel(
+                        report.activity?.reported_local_datetime,
+                        locale,
+                      )}{" "}
+                      ·{" "}
+                      {tr("athleteCount", {
+                        count: report.candidate_rows.length,
+                      })}
                     </p>
                     <Link
                       className="btn btn-primary mt-4"
                       href={identityReportHref(upload.upload_id)}
                     >
-                      Choose this report →
+                      {tr("Choose this report →")}
                     </Link>
                   </section>
                 ))}
@@ -77,15 +87,18 @@ export default function ConnectIdentityPage() {
               <EmptyState
                 title={
                   reports.data.nextCursor
-                    ? "No suitable report in loaded history"
-                    : "No suitable processed report yet"
+                    ? tr("No suitable report in loaded history")
+                    : tr("No suitable processed report yet")
                 }
               >
                 {reports.data.nextCursor
-                  ? "Load older reports to check the rest of your history. "
-                  : "Upload a GPS report, or wait for processing to finish. "}
-                A report needs an eligible athlete row before it can create an
-                accepted session.
+                  ? tr("Load older reports to check the rest of your history.")
+                  : tr(
+                      "Upload a GPS report, or wait for processing to finish.",
+                    )}
+                {tr(
+                  "A report needs an eligible athlete row before it can create an accepted session.",
+                )}
               </EmptyState>
             )}
             {reports.data.uploads
@@ -96,7 +109,7 @@ export default function ConnectIdentityPage() {
                   key={upload.upload_id}
                 >
                   <span className="text-sm font-semibold break-words">
-                    {upload.original_filename}
+                    <bdi dir="auto">{upload.original_filename}</bdi>
                   </span>
                   <Status value={upload.status} />
                 </div>
@@ -108,12 +121,12 @@ export default function ConnectIdentityPage() {
                   className="btn btn-quiet"
                   onClick={reports.loadMore}
                 >
-                  Load older reports
+                  {tr("Load older reports")}
                 </button>
               )}
               {reports.data.nextCursor && reports.atLimit && (
                 <Link href="/app/upload" className="btn btn-quiet">
-                  Browse older reports in My Reports
+                  {tr("Browse older reports in My Reports")}
                 </Link>
               )}
               <button
@@ -121,10 +134,10 @@ export default function ConnectIdentityPage() {
                 className="btn btn-quiet"
                 onClick={reports.refresh}
               >
-                Refresh reports
+                {tr("Refresh reports")}
               </button>
               <Link href="/app/upload" className="btn btn-primary">
-                Upload a GPS report
+                {tr("Upload a GPS report")}
               </Link>
             </div>
           </>

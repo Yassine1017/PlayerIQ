@@ -1,4 +1,9 @@
 "use client";
+import { interfaceText } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n/locale";
+import { ApiError } from "@/lib/api/client";
+import { statusText } from "@/lib/format";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import {
   ArrowLeft,
@@ -23,13 +28,14 @@ import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
 import { dateLabel, metricDisplay } from "@/lib/format";
 
-function sourceValue(row: CandidateRow, label: string) {
+function sourceValue(row: CandidateRow, label: string, locale: Locale) {
   const found = row.metrics.find((item) => item.source_label === label);
   return found?.raw_value == null
     ? "—"
     : metricDisplay(
         found.raw_value,
         found.raw_unit ?? (label.includes("Distance") ? "m" : null),
+        locale,
       );
 }
 function chartValue(
@@ -37,6 +43,7 @@ function chartValue(
   label: string,
   metricKey: string,
   reviews: ChartReview[],
+  locale: Locale,
 ) {
   const manual = reviews.find(
     (review) =>
@@ -61,13 +68,17 @@ function chartValue(
       : "Unavailable";
   return (
     <div>
-      <span>{value ?? "—"}</span>
-      <span className="block text-[10px] text-muted">{state}</span>
+      <bdi dir="ltr">{value ?? "—"}</bdi>
+      <span className="block text-[10px] text-muted">
+        {interfaceText(locale, state)}
+      </span>
     </div>
   );
 }
 const processing = new Set(["received", "queued", "extracting", "validating"]);
 export default function UploadReviewPage() {
+  const { tr, ui, locale } = useLocale();
+
   const { uploadId } = useParams<{ uploadId: string }>();
   const router = useRouter();
   const { api } = useAuth();
@@ -81,10 +92,10 @@ export default function UploadReviewPage() {
   const [targetPlayerId, setTargetPlayerId] = useState<string | null>(null);
   const [teamToAssign, setTeamToAssign] = useState("");
   const [importType, setImportType] = useState<SessionType>("unknown");
-  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | Error | null>(null);
   const [linkedSession, setLinkedSession] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | Error | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
   const load = useCallback(
     (signal: AbortSignal) => api.upload(uploadId, signal),
@@ -149,9 +160,7 @@ export default function UploadReviewPage() {
       const blob = await api.reportFile(uploadId);
       setFileUrl(URL.createObjectURL(blob));
     } catch (reason) {
-      setFileError(
-        reason instanceof Error ? reason.message : "File unavailable",
-      );
+      setFileError(reason instanceof Error ? reason : "File unavailable");
     } finally {
       setFileBusy(false);
     }
@@ -191,9 +200,7 @@ export default function UploadReviewPage() {
               identity.status === "connected",
           )
         ) {
-          throw new Error(
-            "The session was linked, but your identity connection could not be confirmed. Refresh and try again.",
-          );
+          throw new ApiError("identity_confirmation_failed", "", 409);
         }
         setIdentitySuccess("Player identity connected. Opening My Dashboard…");
         await refreshIdentity();
@@ -201,9 +208,7 @@ export default function UploadReviewPage() {
       }
       setConfirmIdentity(false);
     } catch (reason) {
-      setLinkError(
-        reason instanceof Error ? reason.message : "Could not link row",
-      );
+      setLinkError(reason instanceof Error ? reason : "Could not link row");
     } finally {
       setLinkBusy(false);
     }
@@ -216,9 +221,7 @@ export default function UploadReviewPage() {
       await api.requestTeamImport(uploadId, teamToAssign, importType);
       status.refresh();
     } catch (reason) {
-      setLinkError(
-        reason instanceof Error ? reason.message : "Could not assign team",
-      );
+      setLinkError(reason instanceof Error ? reason : "Could not assign team");
     } finally {
       setLinkBusy(false);
     }
@@ -231,15 +234,17 @@ export default function UploadReviewPage() {
             href="/app/upload"
             className="inline-link flex items-center gap-1"
           >
-            <ArrowLeft size={14} /> Back to uploads
+            <ArrowLeft size={14} className="directional-icon" />{" "}
+            {tr("Back to uploads")}
           </Link>
           <span className="eyebrow mt-4 block">
-            Private report · uploader review
+            {tr("Private report · uploader review")}
           </span>
-          <h1 className="page-title">Report review</h1>
+          <h1 className="page-title">{tr("Report review")}</h1>
           <p className="page-subtitle">
-            Inspect source rows and link only the athlete row you explicitly
-            select.
+            {tr(
+              "Inspect source rows and link only the athlete row you explicitly select.",
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -248,41 +253,41 @@ export default function UploadReviewPage() {
             className="btn btn-quiet"
             onClick={status.refresh}
           >
-            <RefreshCcw size={14} /> Refresh
+            <RefreshCcw size={14} /> {tr("Refresh")}
           </button>
           {status.data && <Status value={status.data.status} />}
         </div>
       </div>
       {status.error ? (
-        <ErrorState message={status.error.message} onRetry={status.refresh} />
+        <ErrorState message={status.error} onRetry={status.refresh} />
       ) : status.loading && !status.data ? (
-        <Loading label="Loading report status…" />
+        <Loading label={tr("Loading report status…")} />
       ) : (
         status.data && (
           <>
             <div className="step-list">
               <span className="step active">
-                <span className="num">1</span> Upload
+                <span className="num">1</span> {tr("Upload")}
               </span>
               <span
                 className={`step ${status.data.status === "awaiting_link" ? "active" : ""}`}
               >
-                <span className="num">2</span> Review athlete
+                <span className="num">2</span> {tr("Review athlete")}
               </span>
               <span className={`step ${row ? "active" : ""}`}>
-                <span className="num">3</span> Confirm chart labels
+                <span className="num">3</span> {tr("Confirm chart labels")}
               </span>
               <span className={`step ${linkedSession ? "active" : ""}`}>
-                <span className="num">4</span> Link session
+                <span className="num">4</span> {tr("Link session")}
               </span>
             </div>
             <section className="card card-pad">
               <div className="card-head">
                 <div>
-                  <h2 className="section-title">Source report</h2>
+                  <h2 className="section-title">{tr("Source report")}</h2>
                   <p className="section-subtitle">
                     {status.data.activity?.source_title ??
-                      "Processing source metadata"}
+                      tr("Processing source metadata")}
                   </p>
                 </div>
                 <button
@@ -292,26 +297,31 @@ export default function UploadReviewPage() {
                   onClick={() => void openFile()}
                 >
                   <FileText size={15} />
-                  {fileBusy ? "Opening…" : "View private PDF"}
+                  {fileBusy ? tr("Opening…") : tr("View private PDF")}
                 </button>
               </div>
               <div className="grid gap-2 text-xs text-muted sm:grid-cols-3">
                 <div>
-                  <span className="muted">Session date</span>
+                  <span className="muted">{tr("Session date")}</span>
                   <strong className="block text-content">
-                    {dateLabel(status.data.activity?.reported_local_datetime)}
+                    {dateLabel(
+                      status.data.activity?.reported_local_datetime,
+                      locale,
+                    )}
                   </strong>
                 </div>
                 <div>
-                  <span className="muted">Activity duration</span>
+                  <span className="muted">{tr("Activity duration")}</span>
                   <strong className="block text-content">
                     {status.data.activity?.activity_total_time_s != null
-                      ? `${status.data.activity.activity_total_time_s} seconds (report-level)`
-                      : "Not reported"}
+                      ? tr("{seconds} seconds (report-level)", {
+                          seconds: status.data.activity.activity_total_time_s,
+                        })
+                      : tr("Not reported")}
                   </strong>
                 </div>
                 <div>
-                  <span className="muted">Extracted rows</span>
+                  <span className="muted">{tr("Extracted rows")}</span>
                   <strong className="block text-content">
                     {status.data.candidate_rows.length}
                   </strong>
@@ -321,39 +331,44 @@ export default function UploadReviewPage() {
                 status.data.activity?.source_venue_name) && (
                 <p className="helper mt-3 mb-0">
                   {status.data.activity.source_team_name &&
-                    `Report team: ${status.data.activity.source_team_name}`}
+                    tr("Report team: {name}", {
+                      name: status.data.activity.source_team_name,
+                    })}
                   {status.data.activity.source_team_name &&
                     status.data.activity.source_venue_name &&
                     " · "}
                   {status.data.activity.source_venue_name &&
-                    `Venue: ${status.data.activity.source_venue_name}`}
+                    tr("Venue: {name}", {
+                      name: status.data.activity.source_venue_name,
+                    })}
                 </p>
               )}
               {status.data.team_id ? (
                 <p className="info-box mt-4">
-                  Team workspace: {reportTeam?.name ?? "Assigned team"}. Only
-                  accepted linked sessions appear in team analytics.
+                  {tr(
+                    "Team workspace: {name}. Only accepted linked sessions appear in team analytics.",
+                    { name: reportTeam?.name ?? tr("Assigned team") },
+                  )}
                 </p>
               ) : (
                 teams.some((t) => t.role !== "player") && (
                   <div className="mt-4 rounded-lg border border-line p-4">
                     <h3 className="font-bold text-sm">
-                      Add this report to a team
+                      {tr("Add this report to a team")}
                     </h3>
                     <p className="helper mt-1">
-                      Confirming imports all identifiable athletes into the
-                      selected team, including nonparticipants. Eligible
-                      sessions are shared with the team. The PDF and review
-                      remain private to you.
+                      {tr(
+                        "Confirming imports all identifiable athletes into the selected team, including nonparticipants. Eligible sessions are shared with the team. The PDF and review remain private to you.",
+                      )}
                     </p>
                     <label className="field mt-3">
-                      Team
+                      {tr("Team")}
                       <select
                         className="select"
                         value={teamToAssign}
                         onChange={(e) => setTeamToAssign(e.target.value)}
                       >
-                        <option value="">Select team</option>
+                        <option value="">{tr("Select team")}</option>
                         {teams
                           .filter((t) => t.role !== "player")
                           .map((t) => (
@@ -364,7 +379,7 @@ export default function UploadReviewPage() {
                       </select>
                     </label>
                     <label className="field mt-3">
-                      Team session type
+                      {tr("Team session type")}
                       <select
                         className="select"
                         value={importType}
@@ -372,9 +387,9 @@ export default function UploadReviewPage() {
                           setImportType(e.target.value as SessionType)
                         }
                       >
-                        <option value="unknown">Unknown</option>
-                        <option value="training">Training</option>
-                        <option value="match">Match</option>
+                        <option value="unknown">{tr("Unknown")}</option>
+                        <option value="training">{tr("Training")}</option>
+                        <option value="match">{tr("Match")}</option>
                       </select>
                     </label>
                     <button
@@ -383,28 +398,32 @@ export default function UploadReviewPage() {
                       disabled={!teamToAssign || linkBusy}
                       onClick={() => void assignTeam()}
                     >
-                      Assign team and import all athletes
+                      {tr("Assign team and import all athletes")}
                     </button>
                   </div>
                 )
               )}
-              {fileError && <div className="error-box mt-4">{fileError}</div>}
+              {fileError && (
+                <div className="error-box mt-4">{ui(fileError)}</div>
+              )}
               {fileUrl && (
                 <div className="mt-4">
                   <div className="mb-2 flex items-center justify-between">
                     <span className="helper">
-                      Visible only to the uploader in this browser session
+                      {tr(
+                        "Visible only to the uploader in this browser session",
+                      )}
                     </span>
                     <button
                       type="button"
                       className="inline-link"
                       onClick={() => setFileUrl(null)}
                     >
-                      Close preview
+                      {tr("Close preview")}
                     </button>
                   </div>
                   <iframe
-                    title="Private GPS report preview"
+                    title={tr("Private GPS report preview")}
                     src={fileUrl}
                     className="h-[520px] w-full rounded-lg border border-line"
                   />
@@ -414,7 +433,8 @@ export default function UploadReviewPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Open PDF in new tab <ExternalLink size={12} />
+                    {tr("Open PDF in new tab")}
+                    <ExternalLink size={12} />
                   </a>
                 </div>
               )}
@@ -433,11 +453,15 @@ export default function UploadReviewPage() {
             {processing.has(status.data.status) && (
               <section className="card card-pad">
                 <Loading
-                  label={`Report is ${status.data.status}. Checking again every 5 seconds…`}
+                  label={tr(
+                    "Report is {status}. Checking again every 5 seconds…",
+                    { status: statusText(status.data.status, locale) },
+                  )}
                 />
                 <p className="helper mt-3">
-                  You can leave this page and return from Upload History.
-                  Processing requires the separate backend worker to be running.
+                  {tr(
+                    "You can leave this page and return from Upload History. Processing requires the separate backend worker to be running.",
+                  )}
                 </p>
               </section>
             )}
@@ -446,10 +470,14 @@ export default function UploadReviewPage() {
               <section className="card card-pad">
                 <div className="error-box">
                   {status.data.status === "rejected"
-                    ? "This PDF could not be accepted by the supported report format."
-                    : "Processing could not finish. The worker may retry; refresh this page later."}
+                    ? tr(
+                        "This PDF could not be accepted by the supported report format.",
+                      )
+                    : tr(
+                        "Processing could not finish. The worker may retry; refresh this page later.",
+                      )}
                   {status.data.error_code
-                    ? ` Code: ${status.data.error_code}`
+                    ? tr("Code: {code}", { code: status.data.error_code })
                     : ""}
                 </div>
               </section>
@@ -498,19 +526,24 @@ export default function UploadReviewPage() {
                 <section className="card card-pad">
                   <div className="card-head">
                     <div>
-                      <h2 className="section-title">Extracted athlete rows</h2>
+                      <h2 className="section-title">
+                        {tr("Extracted athlete rows")}
+                      </h2>
                       <p className="section-subtitle">
-                        Source names are evidence only. There is no automatic
-                        name-based linking.
+                        {tr(
+                          "Source names are evidence only. There is no automatic name-based linking.",
+                        )}
                       </p>
                     </div>
                     <span className="status info">
-                      {status.data.candidate_rows.length} rows
+                      {tr("rowCount", {
+                        count: status.data.candidate_rows.length,
+                      })}
                     </span>
                   </div>
                   {!status.data.candidate_rows.length ? (
-                    <EmptyState title="No athlete rows extracted">
-                      Review the validation findings below.
+                    <EmptyState title={tr("No athlete rows extracted")}>
+                      {tr("Review the validation findings below.")}
                     </EmptyState>
                   ) : (
                     <div className="table-wrap">
@@ -518,16 +551,16 @@ export default function UploadReviewPage() {
                         <thead>
                           <tr>
                             <th>#</th>
-                            <th>Athlete in report</th>
-                            <th>Position</th>
-                            <th>Distance</th>
-                            <th>High-speed distance</th>
-                            <th>Max velocity</th>
-                            <th>Player Load</th>
-                            <th>Quality</th>
-                            <th>Link status</th>
+                            <th>{tr("Athlete in report")}</th>
+                            <th>{tr("Position")}</th>
+                            <th>{tr("Distance")}</th>
+                            <th>{tr("High-speed distance")}</th>
+                            <th>{tr("Max velocity")}</th>
+                            <th>{tr("Player Load")}</th>
+                            <th>{tr("Quality")}</th>
+                            <th>{tr("Link status")}</th>
                             <th>
-                              <span className="sr-only">Action</span>
+                              <span className="sr-only">{tr("Action")}</span>
                             </th>
                           </tr>
                         </thead>
@@ -540,11 +573,23 @@ export default function UploadReviewPage() {
                               }
                             >
                               <td>{item.row_ordinal}</td>
-                              <td className="font-bold">{item.source_name}</td>
+                              <td className="font-bold">
+                                <bdi dir="auto">{item.source_name}</bdi>
+                              </td>
                               <td>{item.source_position_code ?? "—"}</td>
-                              <td>{sourceValue(item, "Distance (m)")}</td>
                               <td>
-                                {sourceValue(item, "High Speed Distance (m)")}
+                                <bdi dir="ltr">
+                                  {sourceValue(item, "Distance (m)", locale)}
+                                </bdi>
+                              </td>
+                              <td>
+                                <bdi dir="ltr">
+                                  {sourceValue(
+                                    item,
+                                    "High Speed Distance (m)",
+                                    locale,
+                                  )}
+                                </bdi>
                               </td>
                               <td>
                                 {chartValue(
@@ -552,6 +597,7 @@ export default function UploadReviewPage() {
                                   "Maximum Velocity",
                                   "maximum_velocity_kmh",
                                   reviews.data?.items ?? [],
+                                  locale,
                                 )}
                               </td>
                               <td>
@@ -560,6 +606,7 @@ export default function UploadReviewPage() {
                                   "Player Load",
                                   "player_load_reported",
                                   reviews.data?.items ?? [],
+                                  locale,
                                 )}
                               </td>
                               <td>
@@ -567,14 +614,14 @@ export default function UploadReviewPage() {
                               </td>
                               <td>
                                 {item.links.length
-                                  ? "Linked"
+                                  ? tr("Linked")
                                   : item.recognition_status === "recognized"
-                                    ? "Recognized · confirm"
+                                    ? tr("Recognized · confirm")
                                     : item.quality_state === "zero_recorded"
-                                      ? "Zero activity"
+                                      ? tr("Zero activity")
                                       : item.quality_state !== "ready"
-                                        ? "Needs review"
-                                        : "Unlinked"}
+                                        ? tr("Needs review")
+                                        : tr("Unlinked")}
                               </td>
                               <td>
                                 {item.quality_state === "ready" ? (
@@ -591,14 +638,14 @@ export default function UploadReviewPage() {
                                     }}
                                   >
                                     {selected === item.id
-                                      ? "Selected"
-                                      : "Select row"}
+                                      ? tr("Selected")
+                                      : tr("Select row")}
                                   </button>
                                 ) : (
                                   <span className="helper">
                                     {item.quality_state === "zero_recorded"
-                                      ? "No activity"
-                                      : "Review required"}
+                                      ? tr("No activity")
+                                      : tr("Review required")}
                                   </span>
                                 )}
                               </td>
@@ -612,8 +659,9 @@ export default function UploadReviewPage() {
                     (item) => item.quality_state === "zero_recorded",
                   ) && (
                     <p className="info-box mt-4">
-                      Zero recorded activity is different from a missing value.
-                      Those rows cannot be linked as active player sessions.
+                      {tr(
+                        "Zero recorded activity is different from a missing value. Those rows cannot be linked as active player sessions.",
+                      )}
                     </p>
                   )}
                 </section>
@@ -623,22 +671,24 @@ export default function UploadReviewPage() {
                       <div className="card-head">
                         <div>
                           <span className="eyebrow">
-                            Selected athlete row #{row.row_ordinal}
+                            {tr("Selected athlete row #{row}", {
+                              row: row.row_ordinal,
+                            })}
                           </span>
                           <h2 className="section-title mt-2">
-                            Page 2 chart values
+                            {tr("Page 2 chart values")}
                           </h2>
                           <p className="section-subtitle">
-                            Automatically extracted labels are shown below.
-                            Review uncertain values against the private source
-                            PDF.
+                            {tr(
+                              "Automatically extracted labels are shown below. Review uncertain values against the private source PDF.",
+                            )}
                           </p>
                         </div>
                         <ShieldCheck size={19} className="text-accent-text" />
                       </div>
                       {reviews.error ? (
                         <ErrorState
-                          message={reviews.error.message}
+                          message={reviews.error}
                           onRetry={reviews.refresh}
                         />
                       ) : reviews.loading && !reviews.data ? (
@@ -659,44 +709,50 @@ export default function UploadReviewPage() {
                       <div className="card-head">
                         <div>
                           <span className="eyebrow">
-                            Confirm player identity
+                            {tr("Confirm player identity")}
                           </span>
                           <h2 className="section-title mt-2">
                             {row.recognized_player_id === selectedPlayerId
-                              ? "Recognized source identity"
+                              ? tr("Recognized source identity")
                               : selectedPlayerId === ownedPlayer?.id
-                                ? "Is this your athlete row?"
-                                : "Confirm this team player's row"}
+                                ? tr("Is this your athlete row?")
+                                : tr("Confirm this team player's row")}
                           </h2>
                           <p className="section-subtitle">
-                            Confirm the source evidence below before linking.
-                            Names alone never establish an account identity.
+                            {tr(
+                              "Confirm the source evidence below before linking. Names alone never establish an account identity.",
+                            )}
                           </p>
                         </div>
                       </div>
                       {row.links.length > 0 && (
                         <div className="info-box mb-4">
-                          This row already has a linked session. Repeating the
-                          same link returns the existing session.
+                          {tr(
+                            "This row already has a linked session. Repeating the same link returns the existing session.",
+                          )}
                         </div>
                       )}
                       {reportTeamId && manager && teamPlayers.loading ? (
-                        <Loading label="Loading team players…" />
+                        <Loading label={tr("Loading team players…")} />
                       ) : teamPlayers.error ? (
                         <ErrorState
-                          message={teamPlayers.error.message}
+                          message={teamPlayers.error}
                           onRetry={teamPlayers.refresh}
                         />
                       ) : !linkablePlayers.length ? (
                         <div className="info-box">
                           {reportTeamId && !manager
-                            ? "Team manager access is required to link this report."
-                            : "No eligible player profile is available for this report."}
+                            ? tr(
+                                "Team manager access is required to link this report.",
+                              )
+                            : tr(
+                                "No eligible player profile is available for this report.",
+                              )}
                         </div>
                       ) : (
                         <div className="form-row">
                           <label className="field">
-                            Link to player
+                            {tr("Link to player")}
                             {manager ? (
                               <select
                                 className="select"
@@ -722,7 +778,7 @@ export default function UploadReviewPage() {
                             )}
                           </label>
                           <label className="field">
-                            Session type
+                            {tr("Session type")}
                             <select
                               className="select"
                               value={sessionType}
@@ -730,9 +786,9 @@ export default function UploadReviewPage() {
                                 setSessionType(e.target.value as SessionType)
                               }
                             >
-                              <option value="training">Training</option>
-                              <option value="match">Match</option>
-                              <option value="unknown">Unknown</option>
+                              <option value="training">{tr("Training")}</option>
+                              <option value="match">{tr("Match")}</option>
+                              <option value="unknown">{tr("Unknown")}</option>
                             </select>
                           </label>
                         </div>
@@ -740,43 +796,53 @@ export default function UploadReviewPage() {
                       <div className="rounded-lg bg-surface-muted border border-line p-4 mt-4 text-sm">
                         <div className="grid gap-2 sm:grid-cols-2">
                           <div>
-                            <span className="helper">Source athlete label</span>
-                            <strong className="block">{row.source_name}</strong>
-                          </div>
-                          <div>
-                            <span className="helper">Position</span>
+                            <span className="helper">
+                              {tr("Source athlete label")}
+                            </span>
                             <strong className="block">
-                              {row.source_position_code ?? "Unreported"}
+                              <bdi dir="auto">{row.source_name}</bdi>
                             </strong>
                           </div>
                           <div>
-                            <span className="helper">Session date</span>
+                            <span className="helper">{tr("Position")}</span>
+                            <strong className="block">
+                              {row.source_position_code ?? tr("Unreported")}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="helper">{tr("Session date")}</span>
                             <strong className="block">
                               {dateLabel(
                                 status.data.activity?.reported_local_datetime,
+                                locale,
                               )}
                             </strong>
                           </div>
                           <div>
-                            <span className="helper">Quality</span>
+                            <span className="helper">{tr("Quality")}</span>
                             <strong className="block">
-                              {row.quality_state}
+                              {statusText(row.quality_state, locale)}
                             </strong>
                           </div>
                           <div>
-                            <span className="helper">Distance</span>
+                            <span className="helper">{tr("Distance")}</span>
                             <strong className="block">
-                              {sourceValue(row, "Distance (m)")}
+                              <bdi dir="ltr">
+                                {sourceValue(row, "Distance (m)", locale)}
+                              </bdi>
                             </strong>
                           </div>
                           <div>
-                            <span className="helper">Maximum Velocity</span>
+                            <span className="helper">
+                              {tr("Maximum Velocity")}
+                            </span>
                             <strong className="block">
                               {chartValue(
                                 row,
                                 "Maximum Velocity",
                                 "maximum_velocity_kmh",
                                 reviews.data?.items ?? [],
+                                locale,
                               )}
                             </strong>
                           </div>
@@ -793,20 +859,21 @@ export default function UploadReviewPage() {
                             }
                           />
                           <span>
-                            I have checked this source row and confirm it
-                            belongs to the selected player.
+                            {tr(
+                              "I have checked this source row and confirm it belongs to the selected player.",
+                            )}
                           </span>
                         </label>
                       )}
                       {linkError && (
                         <div className="error-box mt-4" role="alert">
-                          {linkError}
+                          {ui(linkError)}
                         </div>
                       )}
                       {linkedSession ? (
                         <div className="mt-5 rounded-lg border border-line bg-accent-soft p-4">
                           <div className="flex items-center gap-2 text-sm font-bold text-accent-text">
-                            <CheckCircle2 size={18} /> Session linked
+                            <CheckCircle2 size={18} /> {tr("Session linked")}
                           </div>
                           <div className="mt-3 flex gap-2">
                             <Link
@@ -817,7 +884,11 @@ export default function UploadReviewPage() {
                               }
                               className="btn btn-primary"
                             >
-                              View session <ArrowRight size={14} />
+                              {tr("View session")}
+                              <ArrowRight
+                                size={14}
+                                className="directional-icon"
+                              />
                             </Link>
                             <Link
                               href={
@@ -827,7 +898,7 @@ export default function UploadReviewPage() {
                               }
                               className="btn btn-quiet"
                             >
-                              Dashboard
+                              {tr("Dashboard")}
                             </Link>
                           </div>
                         </div>
@@ -841,14 +912,14 @@ export default function UploadReviewPage() {
                           onClick={() => void link()}
                         >
                           {linkBusy
-                            ? "Linking…"
+                            ? tr("Linking…")
                             : selectedPlayerId &&
                                 selectedPlayerId !== ownedPlayer?.id
-                              ? "Confirm team player link"
+                              ? tr("Confirm team player link")
                               : row.recognized_player_id === selectedPlayerId
-                                ? "Confirm recognized link"
-                                : "This is me — confirm and link"}
-                          <ArrowRight size={15} />
+                                ? tr("Confirm recognized link")
+                                : tr("This is me — confirm and link")}
+                          <ArrowRight size={15} className="directional-icon" />
                         </button>
                       )}
                     </section>
@@ -856,7 +927,9 @@ export default function UploadReviewPage() {
                 )}
                 {status.data.findings.length > 0 && (
                   <section className="card card-pad">
-                    <h2 className="section-title">Validation findings</h2>
+                    <h2 className="section-title">
+                      {tr("Validation findings")}
+                    </h2>
                     <ul className="mt-4 grid gap-2">
                       {status.data.findings.map((finding, index) => (
                         <li
@@ -864,7 +937,9 @@ export default function UploadReviewPage() {
                           className="text-xs text-muted"
                         >
                           <Status value={finding.severity} />
-                          <span className="ml-2">{finding.message}</span>
+                          <span className="ms-2">
+                            <bdi dir="auto">{finding.message}</bdi>
+                          </span>
                         </li>
                       ))}
                     </ul>

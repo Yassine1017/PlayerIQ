@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
@@ -9,9 +10,11 @@ import { ErrorState, Loading } from "@/components/ui/states";
 import { metricLabels } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
-import { metricDisplay } from "@/lib/format";
+import { metricDisplay, statusText, dateLabel } from "@/lib/format";
 
 export default function TeamSessionDetailPage() {
+  const { tr, ui, locale } = useLocale();
+
   const { reportId } = useParams<{ reportId: string }>();
   const { api } = useAuth();
   const { team } = useApp();
@@ -29,12 +32,13 @@ export default function TeamSessionDetailPage() {
       <div className="page-heading">
         <div>
           <Link href="/app/team/sessions" className="inline-link">
-            ← Team Sessions
+            {tr("← Team Sessions")}
           </Link>
-          <h1 className="page-title mt-3">Team Session</h1>
+          <h1 className="page-title mt-3">{tr("Team Session")}</h1>
           <p className="page-subtitle">
-            Accepted participants only. Private source observations remain in
-            uploader review.
+            {tr(
+              "Accepted participants only. Private source observations remain in uploader review.",
+            )}
           </p>
         </div>
       </div>
@@ -43,58 +47,66 @@ export default function TeamSessionDetailPage() {
       ) : detail.loading ? (
         <Loading />
       ) : detail.error ? (
-        <ErrorState message={detail.error.message} onRetry={detail.refresh} />
+        <ErrorState message={detail.error} onRetry={detail.refresh} />
       ) : (
         detail.data && (
           <>
             <div className="metric-grid">
               <div className="card card-pad">
-                <span className="eyebrow">Date</span>
+                <span className="eyebrow">{tr("Date")}</span>
                 <strong className="block text-xl mt-2">
-                  {detail.data.summary.local_date}
+                  {dateLabel(detail.data.summary.local_date, locale)}
                 </strong>
               </div>
               <div className="card card-pad">
-                <span className="eyebrow">Activity</span>
+                <span className="eyebrow">{tr("Activity")}</span>
                 <strong className="block text-xl mt-2 capitalize">
-                  {detail.data.summary.session_type}
+                  {statusText(detail.data.summary.session_type, locale)}
                 </strong>
               </div>
               <div className="card card-pad">
-                <span className="eyebrow">Participants</span>
+                <span className="eyebrow">{tr("Participants")}</span>
                 <strong className="block text-xl mt-2">
                   {detail.data.summary.participant_count}
                 </strong>
               </div>
               <div className="card card-pad">
-                <span className="eyebrow">Combined distance</span>
+                <span className="eyebrow">{tr("Combined distance")}</span>
                 <strong className="block text-xl mt-2">
-                  {detail.data.summary.total_distance_m
-                    ? metricDisplay(detail.data.summary.total_distance_m, "m")
-                    : "—"}
+                  <bdi dir="ltr">
+                    {detail.data.summary.total_distance_m
+                      ? metricDisplay(
+                          detail.data.summary.total_distance_m,
+                          "m",
+                          locale,
+                        )
+                      : "—"}
+                  </bdi>
                 </strong>
               </div>
             </div>
             <section className="card card-pad">
-              <h2 className="section-title">Accepted player performance</h2>
+              <h2 className="section-title">
+                {tr("Accepted player performance")}
+              </h2>
               {detail.data.participants.length ? (
                 <div className="table-wrap mt-4">
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Player</th>
-                        <th>Distance</th>
-                        <th>High-speed distance</th>
-                        <th>Maximum Velocity</th>
-                        <th>Player Load</th>
-                        <th>Detail</th>
+                        <th>{tr("Player")}</th>
+                        <th>{tr("Distance")}</th>
+                        <th>{tr("High-speed distance")}</th>
+                        <th>{tr("Maximum Velocity")}</th>
+                        <th>{tr("Player Load")}</th>
+                        <th>{tr("Detail")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {detail.data.participants.map((person) => (
                         <tr key={person.session_id}>
                           <td className="font-semibold">
-                            {person.display_name}
+                            <bdi dir="auto">{person.display_name}</bdi>
                           </td>
                           {[
                             "total_distance_m",
@@ -107,10 +119,14 @@ export default function TeamSessionDetailPage() {
                             );
                             return (
                               <td key={key}>
-                                {m ? metricDisplay(m.value, m.unit) : "—"}
+                                <bdi dir="ltr">
+                                  {m
+                                    ? metricDisplay(m.value, m.unit, locale)
+                                    : "—"}
+                                </bdi>
                                 <span className="sr-only">
                                   {" "}
-                                  {metricLabels[key]}
+                                  {ui(metricLabels[key])}
                                 </span>
                               </td>
                             );
@@ -120,7 +136,7 @@ export default function TeamSessionDetailPage() {
                               className="inline-link"
                               href={`/app/team/players/${person.player_id}`}
                             >
-                              View player →
+                              {tr("View player →")}
                             </Link>
                           </td>
                         </tr>
@@ -130,7 +146,9 @@ export default function TeamSessionDetailPage() {
                 </div>
               ) : (
                 <p className="helper mt-4">
-                  Participant details are limited to your own player profile.
+                  {tr(
+                    "Participant details are limited to your own player profile.",
+                  )}
                 </p>
               )}
             </section>

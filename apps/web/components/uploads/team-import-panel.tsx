@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/provider";
@@ -27,11 +28,13 @@ export function TeamImportPanel({
   players: TeamPlayer[];
   onChanged: () => void;
 }) {
+  const { tr, ui } = useLocale();
+
   const { api } = useAuth();
   const [type, setType] = useState<SessionType>("unknown");
   const [share, setShare] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | Error | null>(null);
   const [selected, setSelected] = useState<TeamImportRow | null>(null);
   const [target, setTarget] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -66,9 +69,7 @@ export function TeamImportPanel({
       onChanged();
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "Import could not be requested",
+        reason instanceof Error ? reason : "Import could not be requested",
       );
     } finally {
       setBusy(false);
@@ -90,38 +91,36 @@ export function TeamImportPanel({
       onChanged();
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "Association could not be confirmed",
+        reason instanceof Error ? reason : "Association could not be confirmed",
       );
     } finally {
       setBusy(false);
     }
   }
   return (
-    <section className="card card-pad" aria-label="Team roster import">
-      <h2 className="section-title">Team roster import</h2>
+    <section className="card card-pad" aria-label={tr("Team roster import")}>
+      <h2 className="section-title">{tr("Team roster import")}</h2>
       <p className="helper">
-        All identifiable athletes join the roster, including nonparticipants.
-        Only eligible metrics enter accepted sessions. Account access requires a
-        separate verified association.
+        {tr(
+          "All identifiable athletes join the roster, including nonparticipants. Only eligible metrics enter accepted sessions. Account access requires a separate verified association.",
+        )}
       </p>
       {result.loading ? (
         <Loading />
       ) : result.error ? (
-        <ErrorState message={result.error.message} onRetry={result.refresh} />
+        <ErrorState message={result.error} onRetry={result.refresh} />
       ) : !result.data ? (
         <>
           <label className="field">
-            Session type
+            {tr("Session type")}
             <select
               className="select"
               value={type}
               onChange={(e) => setType(e.target.value as SessionType)}
             >
-              <option value="unknown">Unknown</option>
-              <option value="training">Training</option>
-              <option value="match">Match</option>
+              <option value="unknown">{tr("Unknown")}</option>
+              <option value="training">{tr("Training")}</option>
+              <option value="match">{tr("Match")}</option>
             </select>
           </label>
           <label className="mt-4 flex gap-2 text-sm">
@@ -130,45 +129,50 @@ export function TeamImportPanel({
               checked={share}
               onChange={(e) => setShare(e.target.checked)}
             />
-            I authorize importing every athlete into this team and sharing
-            accepted sessions. The PDF and private review remain visible only to
-            me.
+            {tr(
+              "I authorize importing every athlete into this team and sharing accepted sessions. The PDF and private review remain visible only to me.",
+            )}
           </label>
           <button
             className="btn btn-primary mt-4"
             disabled={!share || busy}
             onClick={() => void request()}
           >
-            Import all athletes
+            {tr("Import all athletes")}
           </button>
         </>
       ) : (
         <>
           <div className="info-box mt-4" role="status">
             {result.data.status === "queued"
-              ? "Roster import queued. Waiting for processing…"
+              ? tr("Roster import queued. Waiting for processing…")
               : result.data.status === "failed"
-                ? "Import failed. Retry after the issue is resolved."
+                ? tr("Import failed. Retry after the issue is resolved.")
                 : result.data.status === "needs_review"
-                  ? "Import finished with rows needing review."
-                  : "Roster import complete."}
+                  ? tr("Import finished with rows needing review.")
+                  : tr("Roster import complete.")}
             <p className="mb-0 mt-2">
-              {result.data.counts.total ?? 0} athletes ·{" "}
-              {result.data.counts.created_players ?? 0} new profiles ·{" "}
-              {result.data.counts.accepted_sessions ?? 0} accepted sessions ·{" "}
-              {result.data.counts.no_activity ?? 0} with no recorded activity
+              {tr(
+                "{athletes} athletes · {profiles} new profiles · {sessions} accepted sessions · {inactive} with no recorded activity",
+                {
+                  athletes: result.data.counts.total ?? 0,
+                  profiles: result.data.counts.created_players ?? 0,
+                  sessions: result.data.counts.accepted_sessions ?? 0,
+                  inactive: result.data.counts.no_activity ?? 0,
+                },
+              )}
             </p>
           </div>
           <button className="btn btn-quiet mt-3" onClick={result.refresh}>
-            Refresh import
+            {tr("Refresh import")}
           </button>
           {result.data.status === "failed" && (
             <button
-              className="btn btn-primary mt-3 ml-2"
+              className="btn btn-primary mt-3 ms-2"
               disabled={busy}
               onClick={() => void request()}
             >
-              Retry import
+              {tr("Retry import")}
             </button>
           )}
           {!!result.data.rows.length && (
@@ -176,27 +180,31 @@ export function TeamImportPanel({
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Athlete</th>
-                    <th>Association</th>
-                    <th>Result</th>
-                    <th>Review</th>
+                    <th>{tr("Athlete")}</th>
+                    <th>{tr("Association")}</th>
+                    <th>{tr("Result")}</th>
+                    <th>{tr("Review")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.data.rows.map((row) => (
                     <tr key={row.row_id}>
-                      <td>{row.source_name}</td>
                       <td>
-                        {row.association_method === "manager_confirmed"
-                          ? "Verified athlete association"
-                          : row.created_player
-                            ? "Imported unclaimed athlete"
-                            : row.association_method === "unresolved"
-                              ? "Unresolved"
-                              : "Existing player reused"}
+                        <bdi dir="auto">{row.source_name}</bdi>
                       </td>
                       <td>
-                        {importOutcomeLabels[row.outcome] ?? "Review required"}
+                        {row.association_method === "manager_confirmed"
+                          ? tr("Verified athlete association")
+                          : row.created_player
+                            ? tr("Imported unclaimed athlete")
+                            : row.association_method === "unresolved"
+                              ? tr("Unresolved")
+                              : tr("Existing player reused")}
+                      </td>
+                      <td>
+                        {ui(
+                          importOutcomeLabels[row.outcome] ?? "Review required",
+                        )}
                       </td>
                       <td>
                         <button
@@ -207,7 +215,7 @@ export function TeamImportPanel({
                             setConfirmed(false);
                           }}
                         >
-                          Review association
+                          {tr("Review association")}
                         </button>
                       </td>
                     </tr>
@@ -221,16 +229,16 @@ export function TeamImportPanel({
       {selected && (
         <div className="mt-4 rounded-lg border border-line p-4">
           <h3 className="section-title">
-            Confirm athlete: {selected.source_name}
+            {tr("Confirm athlete:")}
+            <bdi dir="auto">{selected.source_name}</bdi>
           </h3>
           <p className="helper">
-            Confirm the source row belongs to the selected athlete. Connecting
-            an unclaimed athlete to an approved account moves its team history
-            to that account, preserving sessions. Conflicting dates require
-            review.
+            {tr(
+              "Confirm the source row belongs to the selected athlete. Connecting an unclaimed athlete to an approved account moves its team history to that account, preserving sessions. Conflicting dates require review.",
+            )}
           </p>
           <label className="field">
-            Roster athlete
+            {tr("Roster athlete")}
             <select
               className="select"
               value={target}
@@ -241,15 +249,15 @@ export function TeamImportPanel({
             >
               <option value="">
                 {selected.player_id
-                  ? "Keep current athlete"
-                  : "Create separate unclaimed athlete"}
+                  ? tr("Keep current athlete")
+                  : tr("Create separate unclaimed athlete")}
               </option>
               {players.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.display_name} ·{" "}
                   {p.account_state === "unclaimed"
-                    ? "Unclaimed"
-                    : "Approved account"}
+                    ? tr("Unclaimed")
+                    : tr("Approved account")}
                 </option>
               ))}
             </select>
@@ -260,26 +268,26 @@ export function TeamImportPanel({
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
             />
-            I verified this source row and athlete association.
+            {tr("I verified this source row and athlete association.")}
           </label>
           <button
             className="btn btn-primary mt-3"
             disabled={!confirmed || busy}
             onClick={() => void resolve()}
           >
-            Confirm athlete association
+            {tr("Confirm athlete association")}
           </button>
           <button
-            className="btn btn-quiet ml-2 mt-3"
+            className="btn btn-quiet ms-2 mt-3"
             onClick={() => setSelected(null)}
           >
-            Cancel
+            {tr("Cancel")}
           </button>
         </div>
       )}
       {error && (
         <div className="error-box mt-4" role="alert">
-          {error}
+          {ui(error)}
         </div>
       )}
     </section>

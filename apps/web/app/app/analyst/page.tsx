@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import { ArrowRight, MessageSquarePlus, Send, Sparkles } from "lucide-react";
 import {
@@ -23,6 +24,8 @@ const suggestions = [
 ];
 
 export default function AnalystPage() {
+  const { tr, ui } = useLocale();
+
   const { api } = useAuth();
   const { player } = useApp();
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -34,7 +37,7 @@ export default function AnalystPage() {
   const [sending, setSending] = useState(false);
   const [threadLoading, setThreadLoading] = useState(false);
   const activeThread = useRef<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | Error | null>(null);
   const [pending, setPending] = useState<{
     question: string;
     requestId: string;
@@ -73,9 +76,7 @@ export default function AnalystPage() {
           setThreadLoading(false);
           setThreadId(null);
           setLoadedPlayerId(player.id);
-          setError(
-            reason instanceof Error ? reason.message : "Could not load chats",
-          );
+          setError(reason instanceof Error ? reason : "Could not load chats");
         }
       })
       .finally(() => {
@@ -98,9 +99,7 @@ export default function AnalystPage() {
     } catch (reason) {
       if (activeThread.current === id)
         setError(
-          reason instanceof Error
-            ? reason.message
-            : "Could not load conversation",
+          reason instanceof Error ? reason : "Could not load conversation",
         );
     } finally {
       if (activeThread.current === id) setThreadLoading(false);
@@ -128,9 +127,7 @@ export default function AnalystPage() {
       setDraft("");
       setPending(null);
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Could not finish analysis",
-      );
+      setError(reason instanceof Error ? reason : "Could not finish analysis");
     } finally {
       setSending(false);
     }
@@ -144,11 +141,15 @@ export default function AnalystPage() {
     <div className="stack analyst-page">
       <div className="page-heading analyst-heading">
         <div>
-          <span className="eyebrow">Interpretation backed by evidence</span>
-          <h1 className="page-title">AI Analyst</h1>
+          <span className="eyebrow">
+            {tr("Interpretation backed by evidence")}
+          </span>
+          <h1 className="page-title">{tr("AI Analyst")}</h1>
           <p className="page-subtitle">
-            Ask questions about {player.display_name}&apos;s GPS history.
-            PlayerIQ calculates the facts; AI explains them.
+            {tr(
+              "Ask questions about {name}’s GPS history. PlayerIQ calculates the facts; AI explains them.",
+              { name: player.display_name },
+            )}
           </p>
         </div>
         <button
@@ -163,16 +164,19 @@ export default function AnalystPage() {
           }}
           disabled={sending}
         >
-          <MessageSquarePlus size={17} /> New conversation
+          <MessageSquarePlus size={17} /> {tr("New conversation")}
         </button>
       </div>
       <div className="analyst-layout">
-        <aside className="analyst-history card" aria-label="Conversations">
-          <h2>Conversations</h2>
+        <aside
+          className="analyst-history card"
+          aria-label={tr("Conversations")}
+        >
+          <h2>{tr("Conversations")}</h2>
           {loading || loadedPlayerId !== player.id ? (
-            <Loading label="Loading conversations…" />
+            <Loading label={tr("Loading conversations…")} />
           ) : threads.length === 0 ? (
-            <p>No conversations yet.</p>
+            <p>{tr("No conversations yet.")}</p>
           ) : (
             <div className="analyst-thread-list">
               {threads.map((thread) => (
@@ -184,8 +188,8 @@ export default function AnalystPage() {
                   className={threadId === thread.id ? "active" : ""}
                 >
                   <Sparkles size={15} />
-                  <span>{thread.title || "Analysis"}</span>
-                  <ArrowRight size={14} />
+                  <span dir="auto">{thread.title || tr("Analysis")}</span>
+                  <ArrowRight size={14} className="directional-icon" />
                 </button>
               ))}
             </div>
@@ -193,18 +197,21 @@ export default function AnalystPage() {
         </aside>
         <section
           className="analyst-conversation card"
-          aria-label="AI Analyst conversation"
+          aria-label={tr("AI Analyst conversation")}
         >
           {!threadId && messages.length === 0 && (
             <div className="analyst-welcome">
               <div className="analyst-welcome-icon">
                 <Sparkles size={27} />
               </div>
-              <span className="eyebrow">Your performance, explained</span>
-              <h2>What would you like to know?</h2>
+              <span className="eyebrow">
+                {tr("Your performance, explained")}
+              </span>
+              <h2>{tr("What would you like to know?")}</h2>
               <p>
-                Ask about confirmed speed, workload, trends, and training
-                sessions. Every number is calculated from your accepted history.
+                {tr(
+                  "Ask about confirmed speed, workload, trends, and training sessions. Every number is calculated from your accepted history.",
+                )}
               </p>
               <div className="analyst-suggestions">
                 {suggestions.map((question) => (
@@ -214,8 +221,8 @@ export default function AnalystPage() {
                     onClick={() => void send(question)}
                     disabled={sending}
                   >
-                    {question}
-                    <ArrowRight size={15} />
+                    {ui(question)}
+                    <ArrowRight size={15} className="directional-icon" />
                   </button>
                 ))}
               </div>
@@ -226,8 +233,8 @@ export default function AnalystPage() {
               {messages.map((message) =>
                 message.role === "user" ? (
                   <div className="analyst-question" key={message.id}>
-                    <span>You</span>
-                    <p>{message.question}</p>
+                    <span>{tr("You")}</span>
+                    <p dir="auto">{message.question}</p>
                   </div>
                 ) : message.analysis ? (
                   <AnswerCard key={message.id} result={message.analysis} />
@@ -235,16 +242,16 @@ export default function AnalystPage() {
               )}
             </div>
           )}
-          {threadLoading && <Loading label="Loading conversation…" />}
+          {threadLoading && <Loading label={tr("Loading conversation…")} />}
           {sending && (
             <div className="analyst-thinking" role="status">
-              <Sparkles size={18} /> PlayerIQ is analyzing your history…
+              <Sparkles size={18} /> {tr("PlayerIQ is analyzing your history…")}
             </div>
           )}
           {error && (
             <div className="analyst-error">
               <ErrorState
-                message={error}
+                message={ui(error)}
                 onRetry={
                   pending ? () => void send(pending.question, true) : undefined
                 }
@@ -253,7 +260,7 @@ export default function AnalystPage() {
           )}
           <form onSubmit={submit} className="analyst-composer">
             <label htmlFor="analyst-question">
-              Ask PlayerIQ about your history
+              {tr("Ask PlayerIQ about your history")}
             </label>
             <div>
               <textarea
@@ -262,21 +269,22 @@ export default function AnalystPage() {
                 onChange={(event) => setDraft(event.target.value)}
                 maxLength={600}
                 rows={2}
-                placeholder="How has my maximum speed changed recently?"
+                placeholder={tr("How has my maximum speed changed recently?")}
                 disabled={sending}
               />
               <button
                 type="submit"
                 className="btn btn-primary"
                 disabled={sending || !draft.trim()}
-                aria-label="Send question"
+                aria-label={tr("Send question")}
               >
                 <Send size={18} />
               </button>
             </div>
             <small>
-              AI interpretation. Verified facts and source sessions are shown
-              with each answer.
+              {tr(
+                "AI interpretation. Verified facts and source sessions are shown with each answer.",
+              )}
             </small>
           </form>
         </section>

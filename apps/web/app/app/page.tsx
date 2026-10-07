@@ -1,5 +1,7 @@
 "use client";
 
+import { useLocale } from "@/components/localization/locale-provider";
+
 import {
   ArrowRight,
   ClipboardCheck,
@@ -27,6 +29,8 @@ function windowDates() {
   return { from: now.toISOString().slice(0, 10), to };
 }
 export default function Dashboard() {
+  const { tr, ui, locale } = useLocale();
+
   const { api } = useAuth();
   const { player, team } = useApp();
   const [metric, setMetric] = useState<string>("total_distance_m");
@@ -66,32 +70,40 @@ export default function Dashboard() {
     <div className="stack">
       <div className="hero">
         <div className="hero-content">
-          <span className="eyebrow">My Dashboard · personal performance</span>
-          <h1>Welcome back, {player.display_name.split(" ")[0]}.</h1>
+          <span className="eyebrow">
+            {tr("My Dashboard · personal performance")}
+          </span>
+          <h1>
+            {tr("Welcome back, {name}", {
+              name: player.display_name.split(" ")[0],
+            })}
+            .
+          </h1>
           <p>
-            Your reviewed GPS data, clear records, and session trends in one
-            place.
+            {tr(
+              "Your reviewed GPS data, clear records, and session trends in one place.",
+            )}
           </p>
           <p className="mt-2 text-sm">
             {sessions.data?.items[0]
-              ? `Latest accepted session: ${dateLabel(sessions.data.items[0].local_date)}`
+              ? tr("Latest accepted session: {date}", {
+                  date: dateLabel(sessions.data.items[0].local_date, locale),
+                })
               : sessions.loading
-                ? "Loading latest session…"
-                : "No accepted session yet"}
+                ? tr("Loading latest session…")
+                : tr("No accepted session yet")}
             {team ? ` · ${team.name}` : ""}
           </p>
           <Link href="/app/upload" className="btn btn-primary mt-3">
-            Upload a report <ArrowRight size={15} />
+            {tr("Upload a report")}
+            <ArrowRight size={15} className="directional-icon" />
           </Link>
         </div>
       </div>
       {identities.error ? (
-        <ErrorState
-          message={identities.error.message}
-          onRetry={identities.refresh}
-        />
+        <ErrorState message={identities.error} onRetry={identities.refresh} />
       ) : identities.loading ? (
-        <Loading label="Checking your GPS identity…" />
+        <Loading label={tr("Checking your GPS identity…")} />
       ) : identities.data && !connected ? (
         <IdentityOnboarding />
       ) : null}
@@ -100,26 +112,21 @@ export default function Dashboard() {
         !sessions.error &&
         sessions.data?.items.length === 0 && (
           <div className="info-box">
-            <strong>Your GPS identity is connected</strong>
+            <strong>{tr("Your GPS identity is connected")}</strong>
             <p className="mt-1 text-sm">
-              No accepted GPS history is available yet. Review a report and
-              confirm an eligible session to start your performance history.
+              {tr(
+                "No accepted GPS history is available yet. Review a report and confirm an eligible session to start your performance history.",
+              )}
             </p>
             <Link href="/app/upload" className="inline-link mt-2 inline-block">
-              Review reports →
+              {tr("Review reports →")}
             </Link>
           </div>
         )}
       {overview.error ? (
-        <ErrorState
-          message={overview.error.message}
-          onRetry={overview.refresh}
-        />
+        <ErrorState message={overview.error} onRetry={overview.refresh} />
       ) : sessions.error ? (
-        <ErrorState
-          message={sessions.error.message}
-          onRetry={sessions.refresh}
-        />
+        <ErrorState message={sessions.error} onRetry={sessions.refresh} />
       ) : overview.loading || sessions.loading ? (
         <div className="metric-grid">
           {[0, 1, 2, 3].map((i) => (
@@ -138,13 +145,13 @@ export default function Dashboard() {
         <section className="card card-pad">
           <div className="card-head">
             <div>
-              <h2 className="section-title">Performance trend</h2>
+              <h2 className="section-title">{tr("Performance trend")}</h2>
               <p className="section-subtitle">
-                Accepted training sessions · last six months
+                {tr("Accepted training sessions · last six months")}
               </p>
             </div>
             <label className="field !gap-0 w-[170px] shrink-0">
-              <span className="sr-only">Trend metric</span>
+              <span className="sr-only">{tr("Trend metric")}</span>
               <select
                 className="select"
                 value={metric}
@@ -152,26 +159,29 @@ export default function Dashboard() {
               >
                 {trendMetrics.map((key) => (
                   <option key={key} value={key}>
-                    {metricLabels[key]}
+                    {ui(metricLabels[key])}
                   </option>
                 ))}
               </select>
             </label>
           </div>
           {trend.error ? (
-            <ErrorState message={trend.error.message} onRetry={trend.refresh} />
+            <ErrorState message={trend.error} onRetry={trend.refresh} />
           ) : trend.loading ? (
-            <Loading label="Loading trend…" />
+            <Loading label={tr("Loading trend…")} />
           ) : (
             <>
               <TrendChart fact={trend.data} />
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-xs text-muted">
                 <span>
-                  {trend.data ? statusText(trend.data.status) : "Unavailable"} ·{" "}
-                  {trend.data?.sample_size ?? 0} sessions
+                  {trend.data
+                    ? statusText(trend.data.status, locale)
+                    : tr("Unavailable")}{" "}
+                  ·{" "}
+                  {tr("sessionCount", { count: trend.data?.sample_size ?? 0 })}
                 </span>
                 <Link href="/app/analytics" className="inline-link">
-                  Explore analytics →
+                  {tr("Explore analytics →")}
                 </Link>
               </div>
             </>
@@ -180,9 +190,9 @@ export default function Dashboard() {
         <section className="card card-pad">
           <div className="card-head">
             <div>
-              <h2 className="section-title">Recorded highlights</h2>
+              <h2 className="section-title">{tr("Recorded highlights")}</h2>
               <p className="section-subtitle">
-                Backed by accepted player history
+                {tr("Backed by accepted player history")}
               </p>
             </div>
             <Trophy size={18} className="text-accent-text" />
@@ -214,21 +224,29 @@ export default function Dashboard() {
                       <Trophy size={17} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold">{record.label}</div>
+                      <div className="text-xs font-bold">
+                        {ui(record.label)}
+                      </div>
                       <div className="small muted">
-                        {record.sub}
-                        {fact?.to_date ? ` · ${dateLabel(fact.to_date)}` : ""}
+                        {ui(record.sub)}
+                        {fact?.to_date
+                          ? ` · ${dateLabel(fact.to_date, locale)}`
+                          : ""}
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-end">
                       <strong>
-                        {fact?.status === "ok"
-                          ? metricDisplay(fact.value, fact.unit)
-                          : "—"}
+                        <bdi dir="ltr">
+                          {fact?.status === "ok"
+                            ? metricDisplay(fact.value, fact.unit, locale)
+                            : "—"}
+                        </bdi>
                       </strong>
                       {fact?.status !== "ok" && (
                         <div className="small muted">
-                          {fact ? statusText(fact.status) : "Unavailable"}
+                          {fact
+                            ? statusText(fact.status, locale)
+                            : tr("Unavailable")}
                         </div>
                       )}
                     </div>
@@ -236,8 +254,9 @@ export default function Dashboard() {
                 );
               })}
               <div className="info-box mt-4">
-                Player Load is a source-reported workload index. Its formula and
-                unit definition are not yet verified.
+                {tr(
+                  "Player Load is a source-reported workload index. Its formula and unit definition are not yet verified.",
+                )}
               </div>
             </>
           )}
@@ -247,22 +266,19 @@ export default function Dashboard() {
         <section className="card card-pad">
           <div className="card-head">
             <div>
-              <h2 className="section-title">Recent sessions</h2>
+              <h2 className="section-title">{tr("Recent sessions")}</h2>
               <p className="section-subtitle">
-                Your accepted, explicitly linked player sessions
+                {tr("Your accepted, explicitly linked player sessions")}
               </p>
             </div>
             <Link href="/app/sessions" className="inline-link">
-              View all →
+              {tr("View all →")}
             </Link>
           </div>
           {sessions.loading ? (
             <Loading />
           ) : sessions.error ? (
-            <ErrorState
-              message={sessions.error.message}
-              onRetry={sessions.refresh}
-            />
+            <ErrorState message={sessions.error} onRetry={sessions.refresh} />
           ) : (
             <SessionTable sessions={sessions.data?.items ?? []} />
           )}
@@ -270,33 +286,39 @@ export default function Dashboard() {
         <section className="card card-pad">
           <div className="card-head">
             <div>
-              <h2 className="section-title">Your next step</h2>
-              <p className="section-subtitle">Keep your history current</p>
+              <h2 className="section-title">{tr("Your next step")}</h2>
+              <p className="section-subtitle">
+                {tr("Keep your history current")}
+              </p>
             </div>
             <ClipboardCheck size={18} className="text-accent-text" />
           </div>
           <div className="rounded-xl border border-line bg-accent-soft p-5">
             <UploadCloud className="text-accent-text" size={25} />
-            <h3 className="mt-3 text-sm font-bold">Add a GPS report</h3>
+            <h3 className="mt-3 text-sm font-bold">{tr("Add a GPS report")}</h3>
             <p className="text-xs leading-5 text-muted">
-              Upload a supported PDF, inspect the extracted athlete rows, then
-              choose and link your own row. Review chart-only values when
-              automatic extraction is uncertain.
+              {tr(
+                "Upload a supported PDF, inspect the extracted athlete rows, then choose and link your own row. Review chart-only values when automatic extraction is uncertain.",
+              )}
             </p>
             <Link href="/app/upload" className="btn btn-primary mt-2">
-              Upload report <ArrowRight size={15} />
+              {tr("Upload report")}
+              <ArrowRight size={15} className="directional-icon" />
             </Link>
           </div>
           <div className="mt-4 rounded-xl border border-line bg-surface-muted p-5">
             <Sparkles className="text-info-text" size={25} />
-            <h3 className="mt-3 text-sm font-bold">Ask the AI Analyst</h3>
+            <h3 className="mt-3 text-sm font-bold">
+              {tr("Ask the AI Analyst")}
+            </h3>
             <p className="text-xs leading-5 text-muted">
-              Explore your accepted history with answers grounded in
-              deterministic analytics. Opening the page does not start an AI
-              request.
+              {tr(
+                "Explore your accepted history with answers grounded in deterministic analytics. Opening the page does not start an AI request.",
+              )}
             </p>
             <Link href="/app/analyst" className="btn btn-quiet mt-2">
-              Open Analyst <ArrowRight size={15} />
+              {tr("Open Analyst")}
+              <ArrowRight size={15} className="directional-icon" />
             </Link>
           </div>
         </section>

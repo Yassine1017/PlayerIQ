@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import { CalendarDays } from "lucide-react";
 import Link from "next/link";
@@ -10,6 +11,8 @@ import { useAuth } from "@/lib/auth/provider";
 import { useResource } from "@/lib/data/use-resource";
 
 export default function SessionsPage() {
+  const { tr } = useLocale();
+
   const { api } = useAuth();
   const { player } = useApp();
   const [cursor, setCursor] = useState<string | undefined>();
@@ -25,32 +28,31 @@ export default function SessionsPage() {
     <div className="stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Player history</span>
-          <h1 className="page-title">My sessions</h1>
+          <span className="eyebrow">{tr("Player history")}</span>
+          <h1 className="page-title">{tr("My sessions")}</h1>
           <p className="page-subtitle">
-            Accepted sessions linked to {player.display_name}. Source rows from
-            other athletes are excluded.
+            {tr(
+              "Accepted sessions linked to {name}. Source rows from other athletes are excluded.",
+              { name: player.display_name },
+            )}
           </p>
         </div>
         <Link href="/app/upload" className="btn btn-primary">
-          Add report
+          {tr("Add report")}
         </Link>
       </div>
       <section className="card card-pad">
         <div className="card-head">
           <div>
-            <h2 className="section-title">Session history</h2>
-            <p className="section-subtitle">20 sessions per page</p>
+            <h2 className="section-title">{tr("Session history")}</h2>
+            <p className="section-subtitle">{tr("20 sessions per page")}</p>
           </div>
           <CalendarDays size={18} className="text-accent-text" />
         </div>
         {sessions.error ? (
-          <ErrorState
-            message={sessions.error.message}
-            onRetry={sessions.refresh}
-          />
+          <ErrorState message={sessions.error} onRetry={sessions.refresh} />
         ) : sessions.loading ? (
-          <Loading label="Loading sessions…" />
+          <Loading label={tr("Loading sessions…")} />
         ) : (
           <>
             <SessionTable sessions={sessions.data?.items ?? []} />
@@ -62,7 +64,7 @@ export default function SessionsPage() {
                   setCursor(sessions.data?.next_cursor ?? undefined)
                 }
               >
-                More sessions
+                {tr("More sessions")}
               </button>
             )}
           </>

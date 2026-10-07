@@ -6,6 +6,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LocaleProvider } from "@/components/localization/locale-provider";
+import { setLocale } from "@/lib/i18n/locale";
 import UploadReviewPage from "@/app/app/uploads/[uploadId]/page";
 import type { UploadStatus } from "@/lib/api/types";
 import { row } from "./fixtures";
@@ -162,7 +164,7 @@ describe("uploader review flow", () => {
       screen.getByRole("button", { name: "Confirm — This is me" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Source label conflicts",
+      "Something went wrong. Please try again.",
     );
     expect(mocks.push).not.toHaveBeenCalled();
     expect(
@@ -291,7 +293,7 @@ describe("uploader review flow", () => {
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: /this is me/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Row not eligible",
+      "Something went wrong. Please try again.",
     );
     expect(screen.queryByText("Session linked")).not.toBeInTheDocument();
   });
@@ -422,3 +424,52 @@ describe("uploader review flow", () => {
     expect(screen.getByText("Recognized source identity")).toBeInTheDocument();
   });
 });
+
+it.each(["pt-BR", "ar"] as const)(
+  "preserves report lookup labels and chart values in %s",
+  async (locale) => {
+    setLocale(locale);
+    mocks.upload = {
+      ...base,
+      candidate_rows: [
+        {
+          ...row,
+          metrics: [
+            ...row.metrics,
+            {
+              source_label: "Maximum Velocity",
+              raw_value: "30.4",
+              raw_unit: "km/h",
+              parsed_value: "30.4",
+              quality_state: "accepted",
+              source_locator: "page:2/method:synthetic",
+            },
+            {
+              source_label: "Player Load",
+              raw_value: "687",
+              raw_unit: "source units",
+              parsed_value: "687",
+              quality_state: "accepted",
+              source_locator: "page:2/method:synthetic",
+            },
+          ],
+        },
+      ],
+    };
+    render(
+      <LocaleProvider>
+        <UploadReviewPage />
+      </LocaleProvider>,
+    );
+    expect(screen.getByText("30.4")).toBeInTheDocument();
+    expect(screen.getByText("687")).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        locale === "ar" ? "مستخرج تلقائيًا" : "Extraído automaticamente",
+      )[0],
+    ).toBeInTheDocument();
+    expect(mocks.upload.candidate_rows[0].metrics.at(-1)?.source_label).toBe(
+      "Player Load",
+    );
+  },
+);

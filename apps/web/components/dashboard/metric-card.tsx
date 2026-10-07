@@ -1,3 +1,5 @@
+"use client";
+import { useLocale } from "@/components/localization/locale-provider";
 import type { AnalyticsFact, PlayerSession } from "@/lib/api/types";
 import { BarChart3, Gauge, Route, Zap } from "lucide-react";
 import {
@@ -40,6 +42,8 @@ export function MetricCards({
   sessions: PlayerSession[];
   facts: AnalyticsFact[];
 }) {
+  const { tr, ui, locale } = useLocale();
+
   const ambiguous =
     sessions.length > 1 && sessions[0].local_date === sessions[1].local_date;
   return (
@@ -51,25 +55,29 @@ export function MetricCards({
             item.kind === "latest_comparison" && item.metric_key === key,
         );
         const detail = ambiguous
-          ? "Latest session order unclear"
+          ? tr("Latest session order unclear")
           : metric
-            ? comparisonCopy(comparison, workload)
+            ? comparisonCopy(comparison, workload, locale)
             : comparison
-              ? statusText(comparison.status)
-              : "Awaiting accepted data";
+              ? statusText(comparison.status, locale)
+              : tr("Awaiting accepted data");
         return (
           <article className="card metric-card" key={key}>
             <div className="icon-box">
               <Icon size={19} />
             </div>
-            <div className="metric-label">{label}</div>
+            <div className="metric-label">{ui(label)}</div>
             <div className="metric-value">
-              {metric ? metricDisplay(metric.value, metric.unit) : "—"}
+              <bdi dir="ltr">
+                {metric
+                  ? metricDisplay(metric.value, metric.unit, locale)
+                  : "—"}
+              </bdi>
             </div>
             <div
-              className={`metric-detail ${metric && comparison?.status === "ok" ? "positive" : ""}`}
+              className={`metric-detail ${metric && comparison?.status === "ok" && !workload ? "positive" : ""}`}
             >
-              {detail}
+              {ui(detail)}
             </div>
           </article>
         );

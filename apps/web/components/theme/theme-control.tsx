@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useId } from "react";
@@ -6,6 +7,8 @@ import { useTheme } from "./theme-provider";
 import type { ThemePreference } from "@/lib/theme";
 
 export function ThemeControl() {
+  const { tr, ui } = useLocale();
+
   const id = useId();
   const { preference, setPreference } = useTheme();
   const Icon =
@@ -20,19 +23,19 @@ export function ThemeControl() {
     <div className="theme-control">
       <Icon size={17} aria-hidden="true" />
       <label className="sr-only" htmlFor={id}>
-        Appearance
+        {tr("Appearance")}
       </label>
       <select
         id={id}
-        title={`Appearance: ${label}`}
+        title={tr("Appearance: {appearance}", { appearance: ui(label) })}
         value={preference}
         onChange={(event) =>
           setPreference(event.target.value as ThemePreference)
         }
       >
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-        <option value="system">System</option>
+        <option value="light">{tr("Light")}</option>
+        <option value="dark">{tr("Dark")}</option>
+        <option value="system">{tr("System")}</option>
       </select>
     </div>
   );

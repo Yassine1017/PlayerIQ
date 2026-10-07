@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/localization/locale-provider";
 
 import {
   BarChart3,
@@ -26,6 +27,7 @@ import {
 import type { Me, Player, Team } from "@/lib/api/types";
 import { useAuth, authConfigured } from "@/lib/auth/provider";
 import { ErrorState, Loading } from "@/components/ui/states";
+import { LanguageControl } from "@/components/localization/language-control";
 import { ThemeControl } from "@/components/theme/theme-control";
 
 interface AppContextValue {
@@ -35,7 +37,7 @@ interface AppContextValue {
   ownedPlayer: Player | null;
   teams: Team[];
   team: Team | null;
-  teamError: string | null;
+  teamError: string | Error | null;
   refreshIdentity: () => Promise<void>;
   refreshTeams: () => Promise<void>;
   selectTeam: (id: string) => void;
@@ -64,6 +66,8 @@ const dataNav = [
 ];
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
+  const { tr, ui } = useLocale();
+
   const { session, loading: authLoading, api, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -71,9 +75,9 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     me: Me;
     players: Player[];
   } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | Error | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [teamError, setTeamError] = useState<string | null>(null);
+  const [teamError, setTeamError] = useState<string | Error | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const refreshIdentity = useCallback(async () => {
@@ -83,9 +87,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       setError(null);
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "Could not load your profile",
+        reason instanceof Error ? reason : "Could not load your profile",
       );
     }
   }, [api]);
@@ -96,9 +98,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       setTeamError(null);
     } catch (reason) {
       const message =
-        reason instanceof Error
-          ? reason.message
-          : "Team workspace is unavailable";
+        reason instanceof Error ? reason : "Team workspace is unavailable";
       setTeamError(message);
       throw reason;
     }
@@ -120,9 +120,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       .catch((reason) => {
         if (!controller.signal.aborted)
           setError(
-            reason instanceof Error
-              ? reason.message
-              : "Could not load your profile",
+            reason instanceof Error ? reason : "Could not load your profile",
           );
       });
     api
@@ -136,9 +134,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       .catch((reason) => {
         if (!controller.signal.aborted)
           setTeamError(
-            reason instanceof Error
-              ? reason.message
-              : "Team workspace is unavailable",
+            reason instanceof Error ? reason : "Team workspace is unavailable",
           );
       });
     return () => controller.abort();
@@ -146,19 +142,26 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   if (!authConfigured)
     return (
       <div className="min-h-screen grid place-items-center p-5">
-        <ErrorState message="Public Supabase configuration is missing. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to apps/web/.env.local." />
+        <ErrorState
+          message={tr(
+            "Public Supabase configuration is missing. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to apps/web/.env.local.",
+          )}
+        />
       </div>
     );
   if (authLoading || !session || (!identity && !error))
     return (
       <div className="min-h-screen grid place-items-center p-5">
-        <Loading label="Opening your workspace…" />
+        <Loading label={tr("Opening your workspace…")} />
       </div>
     );
   if (error && !identity)
     return (
       <div className="min-h-screen grid place-items-center p-5">
-        <ErrorState message={error} onRetry={() => void refreshIdentity()} />
+        <ErrorState
+          message={ui(error)}
+          onRetry={() => void refreshIdentity()}
+        />
       </div>
     );
   if (!identity) return null;
@@ -218,29 +221,31 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
             type="button"
             className="fixed inset-0 z-20 bg-slate-950/40"
             onClick={() => setMobileOpen(false)}
-            aria-label="Close navigation"
+            aria-label={tr("Close navigation")}
           />
         )}
         <aside
           className={`sidebar ${mobileOpen ? "open" : ""}`}
-          aria-label="Primary navigation"
+          aria-label={tr("Primary navigation")}
         >
           <div className="flex items-start justify-between px-3">
             <Link href="/app" className="brand">
               Player<span>IQ</span>
-              <small className="brand-tag">Performance intelligence</small>
+              <small className="brand-tag">
+                {tr("Performance intelligence")}
+              </small>
             </Link>
             <button
               type="button"
               className="mobile-menu text-white"
               onClick={() => setMobileOpen(false)}
-              aria-label="Close menu"
+              aria-label={tr("Close menu")}
             >
               <X size={20} />
             </button>
           </div>
-          <div className="side-section">Personal</div>
-          <nav aria-label="Personal">
+          <div className="side-section">{tr("Personal")}</div>
+          <nav aria-label={tr("Personal")}>
             {personalNav.map((item) => (
               <Link
                 key={item.href}
@@ -250,12 +255,12 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                 aria-current={pathname === item.href ? "page" : undefined}
               >
                 <item.icon size={17} />
-                {item.label}
+                {ui(item.label)}
               </Link>
             ))}
           </nav>
-          <div className="side-section">Team</div>
-          <nav aria-label="Team">
+          <div className="side-section">{tr("Team")}</div>
+          <nav aria-label={tr("Team")}>
             {teamNav.map((item) => (
               <Link
                 key={item.href}
@@ -264,12 +269,12 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                 className={`nav-link ${pathname === item.href || (item.href !== "/app/team" && pathname.startsWith(`${item.href}/`)) ? "active" : ""}`}
               >
                 <item.icon size={17} />
-                {item.label}
+                {ui(item.label)}
               </Link>
             ))}
           </nav>
-          <div className="side-section">Data</div>
-          <nav aria-label="Data">
+          <div className="side-section">{tr("Data")}</div>
+          <nav aria-label={tr("Data")}>
             {dataNav.map((item) => (
               <Link
                 key={item.href}
@@ -278,7 +283,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                 className={`nav-link ${pathname === item.href || pathname.startsWith("/app/uploads/") ? "active" : ""}`}
               >
                 <item.icon size={17} />
-                {item.label}
+                {ui(item.label)}
               </Link>
             ))}
           </nav>
@@ -287,23 +292,25 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               <span className="avatar">{initials}</span>
               <span>
                 <strong className="block text-white">
-                  {identity.me.profile.display_name}
+                  <bdi dir="auto">{identity.me.profile.display_name}</bdi>
                 </strong>
-                <span className="text-sidebar-muted">PlayerIQ account</span>
+                <span className="text-sidebar-muted">
+                  {tr("PlayerIQ account")}
+                </span>
               </span>
             </div>
             <Link
               href="/app/profile"
               className={`nav-link ${pathname === "/app/profile" ? "active" : ""}`}
             >
-              <CircleUserRound size={17} /> Profile & Settings
+              <CircleUserRound size={17} /> {tr("Profile & Settings")}
             </Link>
             <button
               type="button"
               className="nav-link"
               onClick={() => void signOut()}
             >
-              <LogOut size={17} /> Sign Out
+              <LogOut size={17} /> {tr("Sign Out")}
             </button>
           </div>
         </aside>
@@ -314,24 +321,28 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                 type="button"
                 className="mobile-menu btn btn-quiet !p-2"
                 onClick={() => setMobileOpen(true)}
-                aria-label="Open navigation"
+                aria-label={tr("Open navigation")}
               >
                 <Menu size={18} />
               </button>
               <span className="topbar-title">
                 <span className="topbar-context">
-                  Workspace <span className="mx-2 text-muted">/</span>{" "}
+                  {tr("Workspace")}
+                  <span className="mx-2 text-muted">/</span>{" "}
                 </span>
-                <strong className="text-content">{title}</strong>
+                <strong className="text-content">{ui(title)}</strong>
               </span>
             </div>
             <div className="topbar-right">
-              <ThemeControl />
+              <div className="preference-controls">
+                <ThemeControl />
+                <LanguageControl />
+              </div>
               {pathname.startsWith("/app/team") && teams.length > 1 ? (
                 <label className="relative">
-                  <span className="sr-only">Selected team</span>
+                  <span className="sr-only">{tr("Selected team")}</span>
                   <select
-                    className="topbar-player pr-7"
+                    className="topbar-player pe-7"
                     value={team?.id ?? ""}
                     onChange={(event) => setSelectedTeamId(event.target.value)}
                   >
@@ -345,7 +356,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               ) : (
                 <span className="topbar-player">
                   {pathname.startsWith("/app/team")
-                    ? (team?.name ?? "Team workspace")
+                    ? (team?.name ?? tr("Team workspace"))
                     : player.display_name}
                 </span>
               )}
@@ -355,13 +366,13 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
           <main className="content">
             {error && (
               <div className="error-box mb-4">
-                {error}{" "}
+                {ui(error)}{" "}
                 <button
                   type="button"
                   onClick={() => void refreshIdentity()}
                   className="underline"
                 >
-                  Retry
+                  {tr("Retry")}
                 </button>
               </div>
             )}
@@ -382,6 +393,8 @@ function Onboarding({
   hasPlayer: boolean;
   onDone: () => Promise<void>;
 }) {
+  const { tr, ui } = useLocale();
+
   const { api } = useAuth();
   const [name, setName] = useState(me.profile?.display_name ?? "");
   const [playerName, setPlayerName] = useState("");
@@ -389,7 +402,7 @@ function Onboarding({
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   );
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | Error | null>(null);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -400,9 +413,7 @@ function Onboarding({
       if (!hasPlayer) await api.createPlayer(playerName.trim());
       await onDone();
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Could not save setup",
-      );
+      setError(reason instanceof Error ? reason : "Could not save setup");
     } finally {
       setBusy(false);
     }
@@ -411,19 +422,23 @@ function Onboarding({
     <div className="min-h-screen grid place-items-center p-5">
       <div className="card card-pad w-full max-w-lg">
         <div className="flex justify-end mb-4">
-          <ThemeControl />
+          <div className="preference-controls">
+            <ThemeControl />
+            <LanguageControl />
+          </div>
         </div>
-        <span className="eyebrow">Welcome to PlayerIQ</span>
-        <h1 className="page-title mt-2">Set up your workspace</h1>
+        <span className="eyebrow">{tr("Welcome to PlayerIQ")}</span>
+        <h1 className="page-title mt-2">{tr("Set up your workspace")}</h1>
         <p className="page-subtitle mb-6">
-          Create your profile and choose the player you’ll track. Reports are
-          linked only when you explicitly select an athlete row.
+          {tr(
+            "Create your profile and choose the player you’ll track. Reports are linked only when you explicitly select an athlete row.",
+          )}
         </p>
         <form onSubmit={(event) => void submit(event)} className="grid gap-4">
           {!me.profile && (
             <>
               <label className="field">
-                Your display name
+                {tr("Your display name")}
                 <input
                   className="input"
                   required
@@ -433,7 +448,7 @@ function Onboarding({
                 />
               </label>
               <label className="field">
-                Time zone
+                {tr("Time zone")}
                 <input
                   className="input"
                   required
@@ -445,24 +460,24 @@ function Onboarding({
           )}
           {!hasPlayer && (
             <label className="field">
-              Player profile name
+              {tr("Player profile name")}
               <input
                 className="input"
                 required
                 maxLength={160}
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="Name used in PlayerIQ"
+                placeholder={tr("Name used in PlayerIQ")}
               />
             </label>
           )}
           {error && (
             <div className="error-box" role="alert">
-              {error}
+              {ui(error)}
             </div>
           )}
           <button type="submit" disabled={busy} className="btn btn-primary">
-            {busy ? "Saving…" : "Open dashboard"}
+            {busy ? tr("Saving…") : tr("Open dashboard")}
           </button>
         </form>
       </div>

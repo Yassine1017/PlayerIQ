@@ -1,5 +1,7 @@
 "use client";
 
+import { useLocale } from "@/components/localization/locale-provider";
+
 import {
   Activity,
   ArrowUpRight,
@@ -17,7 +19,13 @@ import { Status } from "@/components/ui/status";
 import { useAuth } from "@/lib/auth/provider";
 import { trendMetrics, metricLabels, type SessionType } from "@/lib/api/types";
 import { useResource } from "@/lib/data/use-resource";
-import { dateLabel, factOf, metricDisplay, statusText } from "@/lib/format";
+import {
+  dateLabel,
+  factOf,
+  metricDisplay,
+  decimalDisplay,
+  statusText,
+} from "@/lib/format";
 
 function initialDates() {
   const today = new Date();
@@ -26,6 +34,8 @@ function initialDates() {
   return { from: today.toISOString().slice(0, 10), to };
 }
 export default function AnalyticsPage() {
+  const { tr, ui, locale } = useLocale();
+
   const { api } = useAuth();
   const { player } = useApp();
   const [dates] = useState(initialDates);
@@ -92,24 +102,24 @@ export default function AnalyticsPage() {
     <div className="stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Evidence-led performance</span>
-          <h1 className="page-title">Analytics</h1>
+          <span className="eyebrow">{tr("Evidence-led performance")}</span>
+          <h1 className="page-title">{tr("Analytics")}</h1>
           <p className="page-subtitle">
-            Deterministic calculations from accepted, comparable player
-            sessions.
+            {tr(
+              "Deterministic calculations from accepted, comparable player sessions.",
+            )}
           </p>
         </div>
         {overview.data && (
-          <span className="status info">{overview.data.rule_version}</span>
+          <span className="status info">
+            <bdi dir="auto">{overview.data.rule_version}</bdi>
+          </span>
         )}
       </div>
       {overview.error ? (
-        <ErrorState
-          message={overview.error.message}
-          onRetry={overview.refresh}
-        />
+        <ErrorState message={overview.error} onRetry={overview.refresh} />
       ) : overview.loading ? (
-        <Loading label="Loading analytics…" />
+        <Loading label={tr("Loading analytics…")} />
       ) : (
         <div className="metric-grid">
           {[
@@ -119,9 +129,14 @@ export default function AnalyticsPage() {
               icon: ArrowUpRight,
               description:
                 comparison?.status === "ok" && comparison.percent_change != null
-                  ? `${Number(comparison.percent_change) > 0 ? "+" : ""}${Number(comparison.percent_change).toFixed(1)}% vs ${comparison.sample_size} previous`
+                  ? tr("{change}% vs {count} previous", {
+                      change:
+                        (comparison.percent_change.startsWith("-") ? "" : "+") +
+                        decimalDisplay(comparison.percent_change, 1, locale, 1),
+                      count: comparison.sample_size,
+                    })
                   : comparison
-                    ? statusText(comparison.status)
+                    ? statusText(comparison.status, locale)
                     : "Unavailable",
             },
             {
@@ -147,16 +162,18 @@ export default function AnalyticsPage() {
               <div className="icon-box">
                 <item.icon size={19} />
               </div>
-              <div className="metric-label">{item.title}</div>
+              <div className="metric-label">{ui(item.title)}</div>
               <div className="metric-value">
-                {item.fact?.status === "ok"
-                  ? metricDisplay(item.fact.value, item.fact.unit)
-                  : "—"}
+                <bdi dir="ltr">
+                  {item.fact?.status === "ok"
+                    ? metricDisplay(item.fact.value, item.fact.unit, locale)
+                    : "—"}
+                </bdi>
               </div>
               <div className="metric-detail">
                 {item.fact?.status === "ok"
-                  ? item.description
-                  : statusText(item.fact?.status ?? "missing")}
+                  ? ui(item.description)
+                  : statusText(item.fact?.status ?? "missing", locale)}
               </div>
             </div>
           ))}
@@ -165,9 +182,9 @@ export default function AnalyticsPage() {
       <section className="card card-pad">
         <div className="card-head">
           <div>
-            <h2 className="section-title">Metric trend</h2>
+            <h2 className="section-title">{tr("Metric trend")}</h2>
             <p className="section-subtitle">
-              Filter accepted sessions by metric, date, and session type
+              {tr("Filter accepted sessions by metric, date, and session type")}
             </p>
           </div>
           <BarChart3 size={19} className="text-accent-text" />
@@ -180,7 +197,7 @@ export default function AnalyticsPage() {
           }}
         >
           <label className="field">
-            Metric
+            {tr("Metric")}
             <select
               className="select"
               value={metric}
@@ -188,13 +205,13 @@ export default function AnalyticsPage() {
             >
               {trendMetrics.map((key) => (
                 <option key={key} value={key}>
-                  {metricLabels[key]}
+                  {ui(metricLabels[key])}
                 </option>
               ))}
             </select>
           </label>
           <label className="field">
-            From
+            {tr("From")}
             <input
               className="input"
               type="date"
@@ -205,7 +222,7 @@ export default function AnalyticsPage() {
             />
           </label>
           <label className="field">
-            To
+            {tr("To")}
             <input
               className="input"
               type="date"
@@ -216,43 +233,44 @@ export default function AnalyticsPage() {
             />
           </label>
           <label className="field">
-            Session type
+            {tr("Session type")}
             <select
               className="select"
               value={type}
               onChange={(e) => setType(e.target.value as SessionType)}
             >
-              <option value="training">Training</option>
-              <option value="match">Match</option>
-              <option value="unknown">Unknown</option>
+              <option value="training">{tr("Training")}</option>
+              <option value="match">{tr("Match")}</option>
+              <option value="unknown">{tr("Unknown")}</option>
             </select>
           </label>
           <button className="btn btn-dark" type="submit">
-            Apply
+            {tr("Apply")}
           </button>
         </form>
         <div className="mt-5 border-t border-line pt-4">
           {trend.error ? (
-            <ErrorState message={trend.error.message} onRetry={trend.refresh} />
+            <ErrorState message={trend.error} onRetry={trend.refresh} />
           ) : trend.loading ? (
-            <Loading label="Calculating trend…" />
+            <Loading label={tr("Calculating trend…")} />
           ) : (
             <>
               <div className="mb-3 flex flex-wrap items-center gap-3">
                 <Status value={t?.status ?? "missing_metric"} />
                 <span className="helper">
-                  {t?.sample_size ?? 0} sessions ·{" "}
+                  {tr("sessionCount", { count: t?.sample_size ?? 0 })} ·{" "}
                   {t?.rule_version ?? "analytics_v1"}
                 </span>
                 {t?.status === "not_comparable" && (
                   <span className="helper">
-                    Different source definitions or session types cannot be
-                    combined.
+                    {tr(
+                      "Different source definitions or session types cannot be combined.",
+                    )}
                   </span>
                 )}
                 {t?.status === "ambiguous_order" && (
                   <span className="helper">
-                    Same-date sessions cannot be ordered reliably.
+                    {tr("Same-date sessions cannot be ordered reliably.")}
                   </span>
                 )}
               </div>
@@ -263,47 +281,54 @@ export default function AnalyticsPage() {
                     label: "First value",
                     value:
                       t?.status === "ok"
-                        ? metricDisplay(t.baseline_value, t.unit)
+                        ? metricDisplay(t.baseline_value, t.unit, locale)
                         : "—",
                   },
                   {
                     label: "Latest value",
                     value:
-                      t?.status === "ok" ? metricDisplay(t.value, t.unit) : "—",
+                      t?.status === "ok"
+                        ? metricDisplay(t.value, t.unit, locale)
+                        : "—",
                   },
                   {
                     label: "Absolute change",
                     value:
-                      t?.status === "ok" ? metricDisplay(t.delta, t.unit) : "—",
+                      t?.status === "ok"
+                        ? metricDisplay(t.delta, t.unit, locale)
+                        : "—",
                   },
                   {
                     label: "Percent change",
                     value:
                       t?.status === "ok" && t.percent_change != null
-                        ? `${Number(t.percent_change).toFixed(1)}%`
+                        ? `${decimalDisplay(t.percent_change, 1, locale, 1)}%`
                         : "—",
                   },
                   {
                     label: "Slope per week",
                     value:
                       t?.status === "ok"
-                        ? metricDisplay(t.slope_per_week, t.unit)
+                        ? metricDisplay(t.slope_per_week, t.unit, locale)
                         : "—",
                   },
                 ].map((item) => (
                   <div key={item.label}>
-                    <span className="muted">{item.label}</span>
+                    <span className="muted">{ui(item.label)}</span>
                     <strong className="mt-1 block text-sm">{item.value}</strong>
                   </div>
                 ))}
               </div>
               <div className="helper mt-3">
-                All changes and slope are returned by the backend. A slope
-                requires at least three distinct session dates.
+                {tr(
+                  "All changes and slope are returned by the backend. A slope requires at least three distinct session dates.",
+                )}
                 {t && (
                   <span className="block mt-1">
-                    Source definition: {t.definition_id ?? "unverified"} ·
-                    comparison key: {t.comparability_key ?? "unavailable"}
+                    {tr("Source definition:")}
+                    {t.definition_id ?? tr("Definition unverified")}{" "}
+                    {tr("· comparison key:")}
+                    {t.comparability_key ?? tr("Unavailable")}
                   </span>
                 )}
               </div>
@@ -314,14 +339,15 @@ export default function AnalyticsPage() {
       <section className="card card-pad">
         <div className="card-head">
           <div>
-            <h2 className="section-title">Workload outliers</h2>
+            <h2 className="section-title">{tr("Workload outliers")}</h2>
             <p className="section-subtitle">
-              Unusual workload relative to recent comparable sessions, using
-              median and MAD
+              {tr(
+                "Unusual workload relative to recent comparable sessions, using median and MAD",
+              )}
             </p>
           </div>
           <label className="field !gap-0">
-            <span className="sr-only">Outlier session type</span>
+            <span className="sr-only">{tr("Outlier session type")}</span>
             <select
               className="select"
               value={outlierType}
@@ -329,25 +355,26 @@ export default function AnalyticsPage() {
                 setOutlierType(e.target.value as "training" | "match")
               }
             >
-              <option value="training">Training</option>
-              <option value="match">Match</option>
+              <option value="training">{tr("Training")}</option>
+              <option value="match">{tr("Match")}</option>
             </select>
           </label>
         </div>
         <div className="info-box mb-4 flex gap-2">
-          <Info size={17} className="shrink-0" /> This analysis describes
-          workload variation. It is not a medical or injury assessment.
+          <Info size={17} className="shrink-0" />{" "}
+          {tr(
+            "This analysis describes workload variation. It is not a medical or injury assessment.",
+          )}
         </div>
         {outliers.error ? (
-          <ErrorState
-            message={outliers.error.message}
-            onRetry={outliers.refresh}
-          />
+          <ErrorState message={outliers.error} onRetry={outliers.refresh} />
         ) : outliers.loading ? (
-          <Loading label="Loading outliers…" />
+          <Loading label={tr("Loading outliers…")} />
         ) : !outliers.data?.items.length ? (
-          <EmptyState title="No workload facts yet">
-            More accepted, comparable sessions are needed for outlier analysis.
+          <EmptyState title={tr("No workload facts yet")}>
+            {tr(
+              "More accepted, comparable sessions are needed for outlier analysis.",
+            )}
           </EmptyState>
         ) : (
           <>
@@ -355,14 +382,14 @@ export default function AnalyticsPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Metric</th>
-                    <th>Value</th>
-                    <th>Median</th>
-                    <th>MAD</th>
-                    <th>Score</th>
-                    <th>Classification</th>
-                    <th>Prior sample</th>
+                    <th>{tr("Date")}</th>
+                    <th>{tr("Metric")}</th>
+                    <th>{tr("Value")}</th>
+                    <th>{tr("Median")}</th>
+                    <th>{tr("MAD")}</th>
+                    <th>{tr("Score")}</th>
+                    <th>{tr("Classification")}</th>
+                    <th>{tr("Prior sample")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -370,13 +397,29 @@ export default function AnalyticsPage() {
                     <tr
                       key={`${item.metric_key}:${item.session_ids[0] ?? index}`}
                     >
-                      <td>{dateLabel(item.to_date)}</td>
+                      <td>{dateLabel(item.to_date, locale)}</td>
                       <td className="font-bold">
-                        {metricLabels[item.metric_key ?? ""] ?? item.metric_key}
+                        {ui(
+                          metricLabels[item.metric_key ?? ""] ??
+                            item.metric_key ??
+                            "Metric",
+                        )}
                       </td>
-                      <td>{metricDisplay(item.value, item.unit)}</td>
-                      <td>{metricDisplay(item.median_value, item.unit)}</td>
-                      <td>{metricDisplay(item.mad, item.unit)}</td>
+                      <td>
+                        <bdi dir="ltr">
+                          {metricDisplay(item.value, item.unit, locale)}
+                        </bdi>
+                      </td>
+                      <td>
+                        <bdi dir="ltr">
+                          {metricDisplay(item.median_value, item.unit, locale)}
+                        </bdi>
+                      </td>
+                      <td>
+                        <bdi dir="ltr">
+                          {metricDisplay(item.mad, item.unit, locale)}
+                        </bdi>
+                      </td>
                       <td>{item.score ?? "—"}</td>
                       <td>
                         <Status
@@ -387,8 +430,8 @@ export default function AnalyticsPage() {
                           }
                         />
                         {item.note === "insufficient_variation" && (
-                          <span className="helper ml-2">
-                            No spread in prior values
+                          <span className="helper ms-2">
+                            {tr("No spread in prior values")}
                           </span>
                         )}
                       </td>
@@ -399,10 +442,13 @@ export default function AnalyticsPage() {
               </table>
             </div>
             <div className="helper mt-3">
-              Rule {outliers.data.rule_version} · previous six sessions within
-              60 days · at least five comparable prior values.{" "}
+              {tr("Rule")}
+              <bdi dir="auto">{outliers.data.rule_version}</bdi>{" "}
+              {tr(
+                "· previous six sessions within 60 days · at least five comparable prior values.",
+              )}{" "}
               <Link href="/app/sessions" className="inline-link">
-                View sessions →
+                {tr("View sessions →")}
               </Link>
             </div>
           </>

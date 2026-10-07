@@ -57,6 +57,10 @@ The command above uses `DATABASE_URL` for the privileged **migration** connectio
 
 `GET /healthz` reports process health. `GET /readyz` probes the database and verifies that the login is a restricted API-role member; it returns 503 when the database is unconfigured or unavailable.
 
+## Interface languages
+
+English, Brazilian Portuguese and Arabic are available from the compact language control beside Appearance in the app, sign-in/sign-up and setup headers. Arabic uses RTL layout; browser-local language and appearance choices persist independently. Report evidence, names and existing AI prose retain their original text. See [LOCALIZATION.md](docs/LOCALIZATION.md) for architecture, formatting, testing and remaining language/browser review.
+
 ## Frontend setup
 
 The Next.js app is in `apps/web`. It uses Supabase Auth in the browser and sends its access token to FastAPI. Set **only public values** in an ignored `apps/web/.env.local` (copy `apps/web/.env.example`):

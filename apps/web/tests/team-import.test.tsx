@@ -163,6 +163,6 @@ it("shows safe API and mutation errors", async () => {
   fireEvent.click(screen.getByRole("checkbox"));
   fireEvent.click(screen.getByRole("button", { name: "Import all athletes" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Team access changed",
+    "Something went wrong. Please try again.",
   );
 });

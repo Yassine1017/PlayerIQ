@@ -6,6 +6,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { LocaleProvider } from "@/components/localization/locale-provider";
+import { setLocale } from "@/lib/i18n/locale";
 import AnalystPage from "@/app/app/analyst/page";
 import { AnswerCard } from "@/components/analyst/answer-card";
 import type { AnalystResponse } from "@/lib/api/types";
@@ -230,4 +232,22 @@ it("creates a chat and sends a suggested question", async () => {
   expect(
     await screen.findByText("Your confirmed speed is available."),
   ).toBeInTheDocument();
+});
+
+it("localizes AI chrome while preserving existing answer prose and source links", () => {
+  setLocale("ar");
+  render(
+    <LocaleProvider>
+      <AnswerCard result={result} />
+    </LocaleProvider>,
+  );
+  expect(screen.getByText("الحقائق المتحققة")).toBeInTheDocument();
+  expect(
+    screen.getByText("Your confirmed speed is available."),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /الحصة 1/ })).toHaveAttribute(
+    "href",
+    "/app/sessions/synthetic-session",
+  );
+  expect(result.facts[0].raw_value).toBe("30.400");
 });

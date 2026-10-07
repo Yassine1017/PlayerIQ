@@ -1,5 +1,7 @@
 "use client";
 
+import { useLocale } from "@/components/localization/locale-provider";
+
 import {
   CartesianGrid,
   Line,
@@ -15,29 +17,35 @@ import { dateLabel, metricDisplay, statusText } from "@/lib/format";
 import { EmptyState } from "@/components/ui/states";
 
 export function TrendChart({ fact }: { fact: AnalyticsFact | null }) {
+  const { tr, ui, locale } = useLocale();
+
   if (!fact)
     return (
-      <EmptyState title="Choose a metric">
-        Select a metric and date range to inspect your sessions.
+      <EmptyState title={tr("Choose a metric")}>
+        {tr("Select a metric and date range to inspect your sessions.")}
       </EmptyState>
     );
   if (!fact.points.length)
     return (
-      <EmptyState title={statusText(fact.status)}>
-        There are no accepted, comparable values for this selection.
+      <EmptyState title={statusText(fact.status, locale)}>
+        {tr("There are no accepted, comparable values for this selection.")}
       </EmptyState>
     );
   const points = fact.points.map((point) => ({
     ...point,
     numericValue: Number(point.value),
-    dateLabel: dateLabel(point.local_date),
+    dateLabel: dateLabel(point.local_date, locale),
   }));
   return (
     <>
       <div
         className="chart-box"
+        dir="ltr"
         role="img"
-        aria-label={`${metricLabels[fact.metric_key ?? ""] ?? "Metric"} trend for ${fact.points.length} sessions`}
+        aria-label={tr("{metric} trend for {count} sessions", {
+          metric: ui(metricLabels[fact.metric_key ?? ""] ?? "Metric"),
+          count: fact.points.length,
+        })}
       >
         <ResponsiveContainer width="100%" height={260}>
           <LineChart
@@ -70,9 +78,13 @@ export function TrendChart({ fact }: { fact: AnalyticsFact | null }) {
                 return (
                   <div className="card px-3 py-2 text-xs shadow-lg">
                     <strong>{point.dateLabel}</strong>
-                    <div>{metricDisplay(point.value, fact.unit)}</div>
+                    <div>
+                      <bdi dir="ltr">
+                        {metricDisplay(point.value, fact.unit, locale)}
+                      </bdi>
+                    </div>
                     <div className="capitalize text-muted">
-                      {point.session_type}
+                      {statusText(point.session_type, locale)}
                     </div>
                   </div>
                 );
@@ -101,23 +113,29 @@ export function TrendChart({ fact }: { fact: AnalyticsFact | null }) {
       </div>
       <details className="mt-1 text-xs text-muted">
         <summary className="cursor-pointer font-semibold">
-          View accessible data table
+          {tr("View accessible data table")}
         </summary>
         <div className="table-wrap mt-2">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Session type</th>
-                <th>Value</th>
+                <th>{tr("Date")}</th>
+                <th>{tr("Session type")}</th>
+                <th>{tr("Value")}</th>
               </tr>
             </thead>
             <tbody>
               {fact.points.map((point) => (
                 <tr key={point.session_id}>
-                  <td>{dateLabel(point.local_date)}</td>
-                  <td className="capitalize">{point.session_type}</td>
-                  <td>{metricDisplay(point.value, fact.unit)}</td>
+                  <td>{dateLabel(point.local_date, locale)}</td>
+                  <td className="capitalize">
+                    {statusText(point.session_type, locale)}
+                  </td>
+                  <td>
+                    <bdi dir="ltr">
+                      {metricDisplay(point.value, fact.unit, locale)}
+                    </bdi>
+                  </td>
                 </tr>
               ))}
             </tbody>
